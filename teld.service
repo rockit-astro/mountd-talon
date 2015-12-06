@@ -1,0 +1,12 @@
+[Unit]
+Description=Daemon for controlling the Warwick one-metre telescope via Pyro.
+After=syslog.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/teld
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
