@@ -242,7 +242,13 @@ class TelescopeDaemon:
         # TODO: Implement this properly
         subprocess.call('/usr/local/bin/pdu_power_on')
         subprocess.call('/usr/local/bin/pdu_telescope_80v_power_on')
-        subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'])
+
+        # systemd starts teld with a clean environment
+        # load the talon-specific environment just for talon
+        talon_env = environment_from_source('/etc/profile.d/talon.sh')
+        with open(os.devnull, 'w') as devnull:
+            subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'], env=talon_env, stdout=devnull, stderr=devnull)
+
         return CommandStatus.Succeeded
 
     @Pyro4.expose
@@ -480,6 +486,18 @@ class TelescopeDaemon:
 
             # TODO: Implement secondary focus command
             return CommandStatus.Failed
+
+def environment_from_source(source_path):
+    try:
+        command = ['bash', '-c', 'source ' + source_path + ' && env']
+        output = subprocess.check_output(command, universal_newlines=True, timeout=5)
+        ret = dict()
+        for line in output.split('\n'):
+            (key, _, value) = line.partition('=')
+            ret[key] = value
+        return ret
+    except:
+        return dict()
 
 def fifo_write(fifo_name, fifo_data):
     """Writes a string into the named fifo"""
