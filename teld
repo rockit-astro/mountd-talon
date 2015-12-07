@@ -154,12 +154,14 @@ class TelescopeDaemon:
 
                     if not talon_alive:
                         if self._status != TelescopeStatus.Disabled:
-                            print('Detected talon die')
+                            print('Talon has gone away...')
                             # Talon has just died on us!
                             # Wake up any active commands so that they can fail
                             self._pointing_condition.notify()
                             self._cover_condition.notify()
 
+                            print('Status: {} -> {}'.format(self._status,
+                                                            TelescopeStatus.Disabled))
                         self._status = TelescopeStatus.Disabled
                     elif self._status == TelescopeStatus.Disabled:
                         # Talon has been restarted
@@ -176,7 +178,8 @@ class TelescopeDaemon:
 
     def reset_pointing_offset(self):
         """Resets the pointing xdelta"""
-        if not fifo_write('Telescope', 'xdelta(0,0)'):
+        if not fifo_write('Tel.in', 'xdelta(0,0)'):
+            print('Failed to write to Tel.in')
             return False
 
         self._offset_ra = 0
@@ -187,6 +190,7 @@ class TelescopeDaemon:
         """Issues a pointing command and blocks until the final state is reached (or timeout)"""
         with self._pointing_condition:
             if not fifo_write('Tel.in', fifo_command):
+                print('Failed to write to Tel.in')
                 return False
 
             stopped = False
@@ -219,6 +223,7 @@ class TelescopeDaemon:
         """Issues a cover command and blocks until the final state is reached (or timeout)"""
         with self._cover_condition:
             if not fifo_write('Cover.in', fifo_command):
+                print('Failed to write to Cover.in')
                 return False
 
             stopped = False
@@ -322,6 +327,7 @@ class TelescopeDaemon:
         self._pointing_force_stopped = True
 
         if not fifo_write('Tel.in', 'Stop'):
+            print('Failed to write to Tel.in')
             return CommandStatus.Failed
 
         with self._pointing_condition:
@@ -414,6 +420,7 @@ class TelescopeDaemon:
 
                 fifo_command = 'xdelta({},{})'.format(self._offset_ra, self._offset_dec)
                 if not fifo_write('Tel.in', fifo_command):
+                    print('Failed to write to Tel.in')
                     return False
             else:
                 # Otherwise just slew to the updated position
