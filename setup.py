@@ -29,7 +29,7 @@ distutils.core.setup(name='onemetre-teld',
     options = {'bdist_rpm': {
       'post_install' : 'postinstall.sh',
       'group' : 'Unspecified',
-      'requires' : 'python3, onemetre-pixelshift'
+      'requires' : 'python3, onemetre-talon'
     }},
 
     scripts=['teld', 'tel'],
