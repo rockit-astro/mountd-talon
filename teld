@@ -427,13 +427,16 @@ class TelescopeDaemon:
             if self._status == TelescopeStatus.Tracking:
                 # When tracking we must use the xdelta offset to directly
                 # offset at the motor controller
-                self._offset_ra += ra_delta_radians
-                self._offset_dec += dec_delta_radians
+                offset_ra = self._offset_ra + ra_delta_radians
+                offset_dec = self._offset_dec + dec_delta_radians
 
-                fifo_command = 'xdelta({},{})'.format(self._offset_ra, self._offset_dec)
+                fifo_command = 'xdelta({},{})'.format(offset_ra, offset_dec)
                 if not fifo_write('Tel.in', fifo_command):
                     print('Failed to write to Tel.in')
-                    return False
+                    return CommandStatus.Failed
+
+                self._offset_ra = offset_ra
+                self._offset_dec = offset_dec
             else:
                 # Otherwise just slew to the updated position
                 with self._status_data_lock:
