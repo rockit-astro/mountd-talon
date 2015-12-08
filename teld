@@ -35,6 +35,8 @@ PYRO_HOST = 'localhost'
 PYRO_PORT = 9003
 
 TELSTAT_PATH = '/usr/local/telescope/bin/telstat'
+# TODO: Reference installed copy
+PIXELSHIFT_PATH = '/home/saft/src/pixelshift/pixelshift'
 FIFO_PATH = '/usr/local/telescope/comm/'
 FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
 
@@ -50,6 +52,9 @@ HOMING_TIMEOUT = 120
 LIMIT_TIMEOUT = 120
 SLEW_TIMEOUT = 120
 
+# degrees per pixel for an unbinned image
+TELESCOPE_PIXEL_SCALE = 0.391 / 3600
+
 SLEW_TO_ZENITH = 'Alt: 1.570796 Az: 0'
 
 # This should be kept in sync with the dictionary in tel
@@ -64,10 +69,11 @@ class CommandStatus:
     TelescopeNotInitialized = 10
     TelescopeNotReady = 11
     TelescopeNotTracking = 12
+    TelescopeNotGuiding = 13
 
 class TelescopeStatus:
     """Status of the telescope hardware"""
-    Disabled, NotHomed, Ready, Tracking = range(4)
+    Disabled, NotHomed, Ready, Tracking, Guiding = range(5)
 
 class TryLock(object):
     """Helper object for use with `with` statements"""
@@ -91,6 +97,13 @@ class TelescopeDaemon:
         # Measured in radians
         self._offset_ra = 0
         self._offset_dec = 0
+
+        self._guide_reference_frame = None
+        self._guide_background_tile_size = 0
+        self._guide_offset_ra = 0
+        self._guide_offset_dec = 0
+        self._guide_x_binning = 1
+        self._guide_y_binning = 1
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
@@ -152,7 +165,7 @@ class TelescopeDaemon:
                         if not os.path.exists(FIFO_PATH + fifo_name):
                             talon_alive = False
                             break
-
+                    print('talon alive: ' + str(talon_alive))
                     if not talon_alive:
                         if self._status != TelescopeStatus.Disabled:
                             print('Talon has gone away...')
@@ -449,6 +462,82 @@ class TelescopeDaemon:
                 if not self.slew_to_radec(ra_radians, dec_radians):
                     return CommandStatus.Failed
 
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def start_guiding(self, reference_frame, x_binning, y_binning, background_tile_size):
+        """Configure and enable the autoguider"""
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status < TelescopeStatus.Tracking:
+                return CommandStatus.TelescopeNotTracking
+
+            self._guide_reference_frame = reference_frame
+            self._guide_background_tile_size = background_tile_size
+            self._guide_x_binning = x_binning
+            self._guide_y_binning = y_binning
+            self._status = TelescopeStatus.Guiding
+
+            print('Starting guider with reference {}, {}x{} binning, and {} px tiles'.format(
+                reference_frame, x_binning, y_binning, background_tile_size))
+
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def update_guiding(self, filename):
+        """Update the autoguider with a new frame"""
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status < TelescopeStatus.Guiding:
+                return CommandStatus.TelescopeNotGuiding
+
+            try:
+                output = subprocess.check_output(
+                    [PIXELSHIFT_PATH, self._guide_reference_frame, filename,
+                     str(self._guide_background_tile_size)], universal_newlines=True, timeout=5)
+
+                coords = output.split(' ')
+                guide_offset_ra = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[0])
+                guide_offset_dec = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[1])
+                print('offset: {} {}'.format(guide_offset_ra * 3600, guide_offset_dec * 3600))
+
+                offset_ra = self._offset_ra + guide_offset_ra - self._guide_offset_ra
+                offset_dec = self._offset_dec + guide_offset_dec - self._guide_offset_dec
+                fifo_command = 'xdelta({},{})'.format(offset_ra, offset_dec)
+                if not fifo_write('Tel.in', fifo_command):
+                    print('Failed to write to Tel.in')
+                    return CommandStatus.Failed
+
+                self._guide_offset_ra = guide_offset_ra
+                self._guide_offset_dec = guide_offset_dec
+                self._offset_ra = offset_ra
+                self._offset_dec = offset_dec
+            except:
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def stop_guiding(self):
+        """Stop the autoguider"""
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status < TelescopeStatus.Guiding:
+                return CommandStatus.TelescopeNotGuiding
+
+            self._guide_offset_ra = 0
+            self._guide_offset_dec = 0
+            self._guide_reference_frame = None
+            self._guide_background_tile_size = 0
+            self._status = TelescopeStatus.Tracking
+
+            print('Stopping guiding')
             return CommandStatus.Succeeded
 
     @Pyro4.expose
