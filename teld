@@ -253,7 +253,8 @@ class TelescopeDaemon:
         # load the talon-specific environment just for talon
         talon_env = environment_from_source('/etc/profile.d/talon.sh')
         with open(os.devnull, 'w') as devnull:
-            subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'], env=talon_env, stdout=devnull, stderr=devnull)
+            subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'], env=talon_env,
+                            stdout=devnull, stderr=devnull)
 
         return CommandStatus.Succeeded
 
