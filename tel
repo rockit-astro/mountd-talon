@@ -44,6 +44,7 @@ STATUS_CODES = {
     # Command-specific codes
     10: 'Command failed: telescope has not been initialized',
     11: 'Command failed: telescope has not been homed',
+    12: 'Command failed: telescope is not tracking',
 
     # tel specific codes
     -100: 'Command failed: terminated by user',

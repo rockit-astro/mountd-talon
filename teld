@@ -63,6 +63,7 @@ class CommandStatus:
     # Command-specific codes
     TelescopeNotInitialized = 10
     TelescopeNotReady = 11
+    TelescopeNotTracking = 12
 
 class TelescopeStatus:
     """Status of the telescope hardware"""
@@ -330,6 +331,9 @@ class TelescopeDaemon:
             print('Failed to write to Tel.in')
             return CommandStatus.Failed
 
+        if self._status > TelescopeStatus.Ready:
+            self._status = TelescopeStatus.Ready
+
         with self._pointing_condition:
             self._pointing_condition.notify_all()
 
@@ -353,6 +357,9 @@ class TelescopeDaemon:
             if not self.point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
+            if self._status > TelescopeStatus.Ready:
+                self._status = TelescopeStatus.Ready
+
             if not self.reset_pointing_offset():
                 return CommandStatus.Failed
 
@@ -372,6 +379,9 @@ class TelescopeDaemon:
             # limits and return an error immediately
             if not self.slew_to_radec(ra_radians, dec_radians):
                 return CommandStatus.Failed
+
+            if self._status > TelescopeStatus.Ready:
+                self._status = TelescopeStatus.Ready
 
             if not self.reset_pointing_offset():
                 return CommandStatus.Failed
@@ -400,6 +410,7 @@ class TelescopeDaemon:
             if not self.reset_pointing_offset():
                 return CommandStatus.Failed
 
+            self._status = TelescopeStatus.Tracking
             return CommandStatus.Succeeded
 
     @Pyro4.expose
@@ -412,7 +423,7 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
-            if self._pointing_state == 'TS_TRACKING':
+            if self._status == TelescopeStatus.Tracking:
                 # When tracking we must use the xdelta offset to directly
                 # offset at the motor controller
                 self._offset_ra += ra_delta_radians
