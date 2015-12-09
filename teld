@@ -55,6 +55,8 @@ SLEW_TIMEOUT = 120
 # degrees per pixel for an unbinned image
 TELESCOPE_PIXEL_SCALE = 0.391 / 3600
 
+GUIDE_FUDGE_FACTOR = 0.5
+
 SLEW_TO_ZENITH = 'Alt: 1.570796 Az: 0'
 
 # This should be kept in sync with the dictionary in tel
@@ -497,16 +499,17 @@ class TelescopeDaemon:
 
             try:
                 output = subprocess.check_output(
-                    [PIXELSHIFT_PATH, self._guide_reference_frame, filename,
+                    [PIXELSHIFT_PATH, filename, self._guide_reference_frame,
                      str(self._guide_background_tile_size)], universal_newlines=True, timeout=5)
 
                 coords = output.split(' ')
-                guide_offset_ra = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[0])
-                guide_offset_dec = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[1])
-                print('offset: {} {}'.format(guide_offset_ra * 3600, guide_offset_dec * 3600))
+                guide_offset_ra = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[0]) * GUIDE_FUDGE_FACTOR
+                guide_offset_dec = TELESCOPE_PIXEL_SCALE * self._guide_y_binning * -float(coords[1]) * GUIDE_FUDGE_FACTOR
+                print('px: {} {}'.format(float(coords[0]), float(coords[1])))
+                print('arcsec: {} {}'.format(guide_offset_ra * 3600, guide_offset_dec * 3600))
 
-                offset_ra = self._offset_ra + guide_offset_ra - self._guide_offset_ra
-                offset_dec = self._offset_dec + guide_offset_dec - self._guide_offset_dec
+                offset_ra = self._offset_ra + guide_offset_ra
+                offset_dec = self._offset_dec + guide_offset_dec
                 fifo_command = 'xdelta({},{})'.format(offset_ra, offset_dec)
                 if not fifo_write('Tel.in', fifo_command):
                     print('Failed to write to Tel.in')
