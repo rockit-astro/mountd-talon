@@ -4,7 +4,7 @@ After=syslog.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/teld
+ExecStart=/usr/bin/env python3 -u /usr/bin/teld
 StandardOutput=syslog
 StandardError=syslog
 
