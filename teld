@@ -503,8 +503,10 @@ class TelescopeDaemon:
                      str(self._guide_background_tile_size)], universal_newlines=True, timeout=5)
 
                 coords = output.split(' ')
-                guide_offset_ra = TELESCOPE_PIXEL_SCALE * self._guide_x_binning * float(coords[0]) * GUIDE_FUDGE_FACTOR
-                guide_offset_dec = TELESCOPE_PIXEL_SCALE * self._guide_y_binning * -float(coords[1]) * GUIDE_FUDGE_FACTOR
+                guide_x_scale = TELESCOPE_PIXEL_SCALE * self._guide_x_binning
+                guide_y_scale = -TELESCOPE_PIXEL_SCALE * self._guide_y_binning
+                guide_offset_ra = guide_x_scale * float(coords[0]) * GUIDE_FUDGE_FACTOR
+                guide_offset_dec = guide_y_scale * float(coords[1]) * GUIDE_FUDGE_FACTOR
                 print('px: {} {}'.format(float(coords[0]), float(coords[1])))
                 print('arcsec: {} {}'.format(guide_offset_ra * 3600, guide_offset_dec * 3600))
 
@@ -602,6 +604,8 @@ class TelescopeDaemon:
             return CommandStatus.Failed
 
 def environment_from_source(source_path):
+    """Returns a dictionary of environment variables obtained after sourcing a file
+       into a clean environment"""
     try:
         command = ['bash', '-c', 'source ' + source_path + ' && env']
         output = subprocess.check_output(command, universal_newlines=True, timeout=5)
