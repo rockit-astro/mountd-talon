@@ -258,6 +258,33 @@ class TelescopeDaemon:
         return True
 
     @Pyro4.expose
+    def report_status(self):
+        """Returns a dictionary containing the current telescope state"""
+        data = {
+            'state': self._status,
+            'pointing_state': self._pointing_state,
+            'cover_state': self._cover_state,
+
+            'offset_ra': self._offset_ra,
+            'offset_dec': self._offset_dec,
+
+            'guide_reference_frame': self._guide_reference_frame,
+            'guide_background_tile_size': self._guide_background_tile_size,
+            'guide_x_binning': self._guide_x_binning,
+            'guide_y_binning': self._guide_y_binning,
+
+            'guide_offset_ra': self._guide_offset_ra,
+            'guide_offset_dec': self._guide_offset_dec,
+
+            'telstat': {}
+        }
+
+        with self._status_data_lock:
+            data['telstat'].update(self._status_data)
+
+        return data
+
+    @Pyro4.expose
     def initialize(self):
         """Turns on the power and starts the lower level hardware daemons"""
         # TODO: Implement this properly
