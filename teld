@@ -52,8 +52,8 @@ HOMING_TIMEOUT = 120
 LIMIT_TIMEOUT = 120
 SLEW_TIMEOUT = 120
 
-# degrees per pixel for an unbinned image
-TELESCOPE_PIXEL_SCALE = 0.391 / 3600
+# arcsec -> radians per pixel for an unbinned image
+TELESCOPE_PIXEL_SCALE = 0.391 * math.pi / 648000
 
 GUIDE_FUDGE_FACTOR = 0.5
 
@@ -445,7 +445,11 @@ class TelescopeDaemon:
                 offset_ra = self._offset_ra + ra_delta_radians
                 offset_dec = self._offset_dec + dec_delta_radians
 
-                fifo_command = 'xdelta({},{})'.format(offset_ra, offset_dec)
+                # xdelta expects angles in degrees
+                fifo_command = 'xdelta({},{})'.format(
+                    offset_ra * 180 / math.pi,
+                    offset_dec * 180 / math.pi)
+
                 if not fifo_write('Tel.in', fifo_command):
                     print('Failed to write to Tel.in')
                     return CommandStatus.Failed
@@ -508,11 +512,18 @@ class TelescopeDaemon:
                 guide_offset_ra = guide_x_scale * float(coords[0]) * GUIDE_FUDGE_FACTOR
                 guide_offset_dec = guide_y_scale * float(coords[1]) * GUIDE_FUDGE_FACTOR
                 print('px: {} {}'.format(float(coords[0]), float(coords[1])))
-                print('arcsec: {} {}'.format(guide_offset_ra * 3600, guide_offset_dec * 3600))
+                print('arcsec: {} {}'.format(
+                    guide_offset_ra * 648000 / math.pi,
+                    guide_offset_dec * 648000 / math.pi))
 
                 offset_ra = self._offset_ra + guide_offset_ra
                 offset_dec = self._offset_dec + guide_offset_dec
-                fifo_command = 'xdelta({},{})'.format(offset_ra, offset_dec)
+
+                # xdelta expects angles in degrees
+                fifo_command = 'xdelta({},{})'.format(
+                    offset_ra * 180 / math.pi,
+                    offset_dec * 180 / math.pi)
+
                 if not fifo_write('Tel.in', fifo_command):
                     print('Failed to write to Tel.in')
                     return CommandStatus.Failed
