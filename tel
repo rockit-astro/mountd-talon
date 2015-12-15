@@ -91,29 +91,40 @@ def run_command(command):
         print('Returned unknown status code: {0}'.format(ret))
     sys.exit(ret)
 
-def parse_ra(ra_string):
-    """Converts a HH:MM:SS RA string to radians"""
-    parts = ra_string.split(':')
+def sexagesimal(angle):
+    """Formats a decimal number in sexagesimal format"""
+    negative = angle < 0
+    angle = math.fabs(angle)
+
+    degrees = int(angle)
+    angle = (angle - degrees) * 60
+    minutes = int(angle)
+    seconds = (angle - minutes) * 60
+
+    if negative:
+        degrees *= -1
+
+    return '{:d}:{:02d}:{:05.2f}'.format(degrees, minutes, seconds)
+
+def parse_sexagesimal(string):
+    """Converts a sexagesimal string to decimal"""
+    parts = string.split(':')
     if len(parts) != 3:
-        raise ValueError('Invalid input RA')
+        raise ValueError('Invalid input')
 
-    hours = float(parts[0])
-    minutes = math.copysign(float(parts[1]), hours)
-    seconds = math.copysign(float(parts[2]), hours)
+    a = float(parts[0])
+    b = math.copysign(float(parts[1]), a)
+    c = math.copysign(float(parts[2]), a)
 
-    return (hours + minutes / 60 + seconds / 3600) * math.pi / 12
+    return a + b / 60 + c / 3600
+
+def parse_ra(ra_string):
+    """Converts a HH:MM:SS Dec string to radians"""
+    return parse_sexagesimal(ra_string) * math.pi / 12
 
 def parse_dec(dec_string):
     """Converts a DD:MM:SS Dec string to radians"""
-    parts = dec_string.split(':')
-    if len(parts) != 3:
-        raise ValueError('Invalid input Dec')
-
-    degrees = float(parts[0])
-    minutes = math.copysign(float(parts[1]), degrees)
-    seconds = math.copysign(float(parts[2]), degrees)
-
-    return (degrees + minutes / 60 + seconds / 3600) * math.pi / 180
+    return parse_sexagesimal(dec_string) * math.pi / 180
 
 def operate_cover(args):
     """Opens or closes the mirror covers"""
@@ -248,21 +259,6 @@ def guide(args):
 
     print('usage: {} guide [start|update|stop]'.format(SCRIPT_NAME))
     return -1
-
-def sexagesimal(angle):
-    """Formats a decimal number in sexagesimal format"""
-    negative = angle < 0
-    angle = math.fabs(angle)
-
-    degrees = int(angle)
-    angle = (angle - degrees) * 60
-    minutes = int(angle)
-    seconds = (angle - minutes) * 60
-
-    if negative:
-        degrees *= -1
-
-    return '{:d}:{:02d}:{:05.2f}'.format(degrees, minutes, seconds)
 
 def status():
     """Reports the current telescope status"""
