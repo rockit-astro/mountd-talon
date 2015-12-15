@@ -30,26 +30,25 @@ SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 # Positions in degrees (alt, az)
 PARK_POSITIONS = {
-    'zenith': (math.pi / 2, 0),
-    'stow': (0.616, 0.405)
+    'stow': (0.616, 0.405, 'general purpose park protecting the mirror and instrument'),
+    'zenith': (math.pi / 2, 0, 'park at zenith for maintenance tasks'),
 }
 
 # This should be kept in sync with the class in teld
 STATUS_CODES = {
     # General error codes
-    0: 'Command complete',
-    1: 'Command failed',
-    2: 'Command failed: another command is already running',
+    1: 'error: command failed',
+    2: 'error: another command is already running',
 
     # Command-specific codes
-    10: 'Command failed: telescope has not been initialized',
-    11: 'Command failed: telescope has not been homed',
-    12: 'Command failed: telescope is not tracking',
-    13: 'Command failed: telescope is not guiding',
+    10: 'error: telescope has not been initialized',
+    11: 'error: telescope has not been homed',
+    12: 'error: telescope is not tracking',
+    13: 'error: telescope is not guiding',
 
     # tel specific codes
-    -100: 'Command failed: terminated by user',
-    -101: 'Command failed: unable to communicate with telescope daemon'
+    -100: 'error: terminated by user',
+    -101: 'error: unable to communicate with telescope daemon'
 }
 
 TELESCOPE_STATE_DESCRIPTIONS = {
@@ -85,9 +84,10 @@ def run_command(command):
     except Pyro4.errors.CommunicationError:
         ret = -101
 
+    # Print message associated with error codes, except for -1 (error handled locally)
     if ret in STATUS_CODES:
         print(STATUS_CODES[ret])
-    else:
+    elif ret != -1 and ret != 0:
         print('Returned unknown status code: {0}'.format(ret))
     sys.exit(ret)
 
@@ -117,105 +117,137 @@ def parse_dec(dec_string):
 
 def operate_cover(args):
     """Opens or closes the mirror covers"""
-    command = args[0]
+    if len(args) == 1:
+        if args[0] == 'open':
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.open_covers()
+        elif args[0] == 'close':
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.close_covers()
 
-    if command == 'open':
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.open_covers()
-    elif command == 'close':
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.close_covers()
-
-    print('Unknown cover command: ' + command)
-    return 1
+    print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
+    return -1
 
 def park(args):
     """Slews the telescope to a named park position"""
-    if len(args) == 0:
-        print('Please specify a park postion.')
-        print('Available positions are:')
-        for p in PARK_POSITIONS:
-            print('\t' + p)
-        return 1
+    if len(args) == 1:
+        if args[0] not in PARK_POSITIONS:
+            print('error: unknown park position \'' + args[0] + '\'')
+            return -1
 
-    if args[0] not in PARK_POSITIONS:
-        print('Unknown park position: ' + args[0])
-        print('Available positions are:')
-        for p in PARK_POSITIONS:
-            print('\t' + p)
-        return 1
+        alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
+        with Pyro4.Proxy(DAEMON_URI) as teld:
+            return teld.slew_altaz(alt_radians, az_radians)
 
-    alt_radians, az_radians = PARK_POSITIONS.get(args[0])
-    with Pyro4.Proxy(DAEMON_URI) as teld:
-        return teld.slew_altaz(alt_radians, az_radians)
+    print('usage: {} park <position>'.format(SCRIPT_NAME))
+    print()
+    for p in PARK_POSITIONS:
+        print('   {:6s}    {}'.format(p, PARK_POSITIONS[p][2]))
+    print()
+    return -1
 
 def slew(args):
     """Slews the telescope to a specified RA,Dec position"""
     if len(args) != 2:
-        print('Please specify RA and Dec coordinates.')
-        return 1
+        print('usage: {} slew <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
 
-    ra_radians = parse_ra(args[0])
-    dec_radians = parse_dec(args[1])
+    try:
+        ra_radians = parse_ra(args[0])
+    except ValueError:
+        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
+        return -1
+
+    try:
+        dec_radians = parse_dec(args[1])
+    except ValueError:
+        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        return -1
+
+    # TODO: Check against limits
+
     with Pyro4.Proxy(DAEMON_URI) as teld:
         return teld.slew_radec(ra_radians, dec_radians)
 
 def track(args):
     """Slews the telescope to a specified RA,Dec position and begins tracking"""
     if len(args) != 2:
-        print('Please specify RA and Dec coordinates.')
-        return 1
+        print('usage: {} track <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
 
-    ra_radians = parse_ra(args[0])
-    dec_radians = parse_dec(args[1])
+    try:
+        ra_radians = parse_ra(args[0])
+    except ValueError:
+        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
+        return -1
+
+    try:
+        dec_radians = parse_dec(args[1])
+    except ValueError:
+        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        return -1
+
+    # TODO: check against limits
+
     with Pyro4.Proxy(DAEMON_URI) as teld:
         return teld.track_radec(ra_radians, dec_radians)
 
 def offset(args):
     """Offsets the telescope by a specified delta RA,Dec"""
     if len(args) != 2:
-        print('Please specify RA and Dec offsets.')
-        return 1
+        print('usage: {} offset <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
 
-    offset_ra_radians = parse_ra(args[0])
-    offset_dec_radians = parse_dec(args[1])
+    try:
+        offset_ra_radians = parse_ra(args[0])
+    except ValueError:
+        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
+        return -1
+
+    try:
+        offset_dec_radians = parse_dec(args[1])
+    except ValueError:
+        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        return -1
+
     with Pyro4.Proxy(DAEMON_URI) as teld:
         return teld.offset_radec(offset_ra_radians, offset_dec_radians)
 
 def calibrate(args):
     """Performs the home and limit calibrations"""
-    command = args[0]
-    if command == 'home':
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.find_homes()
-    elif command == 'limits':
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.find_limits()
+    if len(args) == 1:
+        if args[0] == 'home':
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.find_homes()
+        elif args[0] == 'limits':
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.find_limits()
 
-    print('Unknown calibration command: ' + command)
-    return 1
+    print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
+    return -1
 
 def guide(args):
     """Interact with the autoguider"""
-    command = args[0]
-    if command == 'start':
-        if len(args) < 3:
-            print('args: <reference frame> <x binning> <y binning> <background tile size>')
-            return 1
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.start_guiding(args[1], int(args[2]), int(args[3]), int(args[4]))
-    elif command == 'update':
-        if len(args) < 2:
-            print('args: <updated frame>')
-            return 1
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.update_guiding(args[1])
-    elif command == 'stop':
-        with Pyro4.Proxy(DAEMON_URI) as teld:
-            return teld.stop_guiding()
+    if len(args) > 0:
+        if args[0] == 'start':
+            if len(args) < 3:
+                print('usage: {} guide start <reference frame> <x binning> <y binning> ' \
+                    '<background tile size>'.format(SCRIPT_NAME))
+                return -1
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.start_guiding(args[1], int(args[2]), int(args[3]), int(args[4]))
+        elif args[0] == 'update':
+            if len(args) < 2:
+                print('usage: {} guide update <new frame>'.format(SCRIPT_NAME))
+                return -1
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.update_guiding(args[1])
+        elif args[0] == 'stop':
+            with Pyro4.Proxy(DAEMON_URI) as teld:
+                return teld.stop_guiding()
 
-    print('Unknown guide command: ' + command)
-    return 1
+    print('usage: {} guide [start|update|stop]'.format(SCRIPT_NAME))
+    return -1
 
 def sexagesimal(angle):
     """Formats a decimal number in sexagesimal format"""
@@ -304,14 +336,28 @@ def reboot():
 
 def print_usage():
     """Prints the utility help"""
-    print('Usage: {} command'.format(SCRIPT_NAME))
+    print('usage: {} <command> [<args>]'.format(SCRIPT_NAME))
     print()
-    print('    {} status'.format(SCRIPT_NAME))
+    print('general commands:')
+    print('   status    print a human-readable summary of the telescope status')
+    print('   covers    open or close the mirror covers')
+    print('   park     park the telescope in a named position')
     print()
-    print('  Print a human-readable summary of the telescope status and exit')
+    print('observing commands:')
+    print('   slew      slew the telescope to a given RA, Dec')
+    print('   track     slew the telescope to a given RA, Dec and track the target')
+    print('   offset    offset the telescope by a given RA, Dec')
+    print('   stop      immediately stop any telescope movement')
+    print('   guide     start, update, or stop the autoguider')
+    print()
+    print('engineering commands:')
+    print('   cal       perform telescope home or limit calibrations')
+    print('   init      power on the telescope and start low-level hardware daemons')
+    print('   kill      kill low-level hardware daemons and power off the telescope')
+    print('   reboot    kill and reinitialize the telescope and low-level daemons')
     print()
 
-    return 1
+    return 0
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
