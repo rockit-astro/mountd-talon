@@ -52,6 +52,23 @@ STATUS_CODES = {
     -101: 'Command failed: unable to communicate with telescope daemon'
 }
 
+TELESCOPE_STATE_DESCRIPTIONS = {
+    0: u'\033[1m\033[91mOFFLINE\033[0m',
+    1: u'\033[1m\033[91mONLINE BUT NOT HOMED\033[0m',
+    2: u'\033[1mREADY TO OBSERVE\033[0m',
+    3: u'\033[1m\033[92mTRACKING TARGET\033[0m',
+    4: u'\033[1m\033[92mGUIDING ON TARGET\033[0m'
+}
+
+TELESCOPE_COVER_DESCRIPTIONS = {
+    'CV_ABSENT': '\033[1m\033[93mABSENT\033[0m',
+    'CV_IDLE': '\033[1mIDLE\033[0m',
+    'CV_OPENING': '\033[1m\033[91mOPENING\033[0m',
+    'CV_CLOSING': '\033[1m\033[91mCLOSING\033[0m',
+    'CV_OPEN': '\033[1m\033[92mOPEN\033[0m',
+    'CV_CLOSED': '\033[1m\033[91mCLOSED\033[0m'
+}
+
 sys.excepthook = Pyro4.util.excepthook
 
 def run_command(command):
@@ -200,6 +217,70 @@ def guide(args):
     print('Unknown guide command: ' + command)
     return 1
 
+def sexagesimal(angle):
+    """Formats a decimal number in sexagesimal format"""
+    negative = angle < 0
+    angle = math.fabs(angle)
+
+    degrees = int(angle)
+    angle = (angle - degrees) * 60
+    minutes = int(angle)
+    seconds = (angle - minutes) * 60
+
+    if negative:
+        degrees *= -1
+
+    return '{:d}:{:02d}:{:05.2f}'.format(degrees, minutes, seconds)
+
+def status():
+    """Reports the current telescope status"""
+    with Pyro4.Proxy(DAEMON_URI) as teld:
+        data = teld.report_status()
+
+        state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+        if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
+            state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
+
+        cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+        if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
+            cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
+
+        ra_desc = 'UNKNOWN'
+        ra_offset_desc = ''
+        dec_desc = 'UNKNOWN'
+        dec_offset_desc = ''
+        telstat = data['telstat']
+        if len(telstat) > 0:
+            ra_desc = sexagesimal(float(telstat['ra']) * 12 / math.pi)
+            dec_desc = sexagesimal(float(telstat['dec']) * 180 / math.pi)
+
+        ra_offset = float(data['offset_ra'])
+        if ra_offset != 0:
+            ra_offset_coords = sexagesimal(ra_offset * 12 / math.pi)
+            ra_offset_desc = ' with offset \033[1m' + ra_offset_coords + '\033[0m'
+
+        dec_offset = float(data['offset_dec'])
+        if dec_offset != 0:
+            dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
+            dec_offset_desc = ' with offset \033[1m' + dec_offset_coords + '\033[0m'
+
+        print('   Telescope is {} (Talon state {}).'.format(state_desc, data['pointing_state']))
+        print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
+        print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
+        print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
+
+        if data['guide_reference_frame'] != None:
+            print('   Guiding on frame \033[1m{}\033[0m'.format(
+                data['guide_reference_frame']))
+            print('   Using \033[1m{}\033[0m x \033[1m{}\033[0m binning and ' \
+                '\033[1m{}\033[0m px background tiles'.format(
+                    data['guide_x_binning'], data['guide_y_binning'],
+                    data['guide_background_tile_size']))
+            print('   Current guide offset is \033[1m{}\033[0m, \033[1m{}\033[0m'.format(
+                sexagesimal(float(data['guide_offset_ra']) / 15),
+                sexagesimal(float(data['guide_offset_dec']))))
+        return 0
+
 def stop():
     """Stops any active telescope movement"""
     with Pyro4.Proxy(DAEMON_URI) as teld:
@@ -249,6 +330,8 @@ if __name__ == '__main__':
         run_command(lambda: calibrate(sys.argv[2:]))
     if sys.argv[1] == 'guide':
         run_command(lambda: guide(sys.argv[2:]))
+    if sys.argv[1] == 'status':
+        run_command(status)
     if sys.argv[1] == 'stop':
         run_command(stop)
     if sys.argv[1] == 'init':
