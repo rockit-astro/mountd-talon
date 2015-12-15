@@ -68,6 +68,9 @@ SHM_AXIS_DF = 80
 SHM_AXIS_POSLIM = 56
 SHM_AXIS_NEGLIM = 64
 
+# How close we consider to be close enough for focus
+TELESCOPE_FOCUS_TOLERANCE = 0.005
+
 # Delay between telstat queries (in seconds)
 TELSTAT_QUERY_DELAY = 1
 
@@ -79,6 +82,7 @@ COVER_TIMEOUT = 2.5
 HOMING_TIMEOUT = 120
 LIMIT_TIMEOUT = 120
 SLEW_TIMEOUT = 120
+FOCUS_TIMEOUT = 60
 
 # arcsec -> radians per pixel for an unbinned image
 TELESCOPE_PIXEL_SCALE = 0.391 * math.pi / 648000
@@ -149,6 +153,8 @@ class TelescopeDaemon:
         self._command_lock = threading.Lock()
         self._pointing_condition = threading.Condition()
         self._cover_condition = threading.Condition()
+        self._telescope_focus_condition = threading.Condition()
+        self._force_stopped = False
 
         self._status = TelescopeStatus.Disabled
 
@@ -161,12 +167,13 @@ class TelescopeDaemon:
         self._current_dec = 0
         self._last_pointing_state = TelState.Stopped
         self._pointing_state = TelState.Stopped
-        self._pointing_force_stopped = False
+
 
         self._last_cover_state = CoverState.Absent
         self._cover_state = CoverState.Absent
 
-        self._primary_focus_um = 0
+        self._telescope_focus_um = 0
+        self._last_telescope_focus_um = 0
 
         tel_status_thread = threading.Thread(target=self.__poll_tel_status)
         tel_status_thread.daemon = True
@@ -202,8 +209,8 @@ class TelescopeDaemon:
                 focus_step = shm_read_int(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_STEP)
                 focus_pos = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_CPOS)
                 focus_df = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS +SHM_AXIS_DF)
-
-                self._primary_focus_um = focus_step * focus_pos / \
+                self._last_telescope_focus_um = self._telescope_focus_um
+                self._telescope_focus_um = focus_step * focus_pos / \
                     (2 * math.pi * focus_df)
 
         except sysv_ipc.ExistentialError:
@@ -217,52 +224,63 @@ class TelescopeDaemon:
             # Acquire all condition locks to avoid races with commands
             with self._cover_condition:
                 with self._pointing_condition:
-                    self.__update_state_from_talon_shm()
+                    with self._telescope_focus_condition:
+                        self.__update_state_from_talon_shm()
 
-                    if self._last_pointing_state != self._pointing_state:
-                        print(TelState.Names[self._last_pointing_state] + ' -> ' + \
-                              TelState.Names[self._pointing_state])
-                        self._pointing_condition.notify()
-
-                    if self._last_cover_state != self._cover_state:
-                        print(CoverState.Names[self._last_cover_state] + ' -> ' + \
-                              CoverState.Names[self._cover_state])
-                        self._cover_condition.notify()
-
-                    # Check that talon is still running
-                    talon_alive = True
-                    for fifo_name in FIFO_NAMES:
-                        if not os.path.exists(FIFO_PATH + fifo_name):
-                            talon_alive = False
-                            break
-                    print('talon alive: ' + str(talon_alive))
-                    if not talon_alive:
-                        if self._status != TelescopeStatus.Disabled:
-                            print('Talon has gone away...')
-                            # Talon has just died on us!
-                            # Wake up any active commands so that they can fail
+                        if self._last_pointing_state != self._pointing_state:
+                            print(TelState.Names[self._last_pointing_state] + ' -> ' + \
+                                  TelState.Names[self._pointing_state])
                             self._pointing_condition.notify()
+
+                        if self._last_cover_state != self._cover_state:
+                            print(CoverState.Names[self._last_cover_state] + ' -> ' + \
+                                  CoverState.Names[self._cover_state])
                             self._cover_condition.notify()
 
-                            print('Status: {} -> {}'.format(self._status,
-                                                            TelescopeStatus.Disabled))
-                        self._status = TelescopeStatus.Disabled
-                    elif self._status == TelescopeStatus.Disabled and self._talon_shm is not None:
-                        # Either we or talon has been restarted... find current status
+                        if self._last_telescope_focus_um != self._telescope_focus_um:
+                            print('tel focus: {:2f} -> {:2f}'.format(self._last_telescope_focus_um,
+                                                                     self._telescope_focus_um))
+                            self._telescope_focus_condition.notify()
 
-                        # Don't need the lock because we are reading directly from shm
-                        ra_flags = shm_read_ushort(self._talon_shm, SHM_RA_AXIS + SHM_AXIS_FLAGS)
-                        dec_flags = shm_read_ushort(self._talon_shm, SHM_DEC_AXIS + SHM_AXIS_FLAGS)
-#                        focus_flags = shm_read_ushort(self._talon_shm, \
-#                                                      SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+                        # Check that talon is still running
+                        talon_alive = True
+                        for fifo_name in FIFO_NAMES:
+                            if not os.path.exists(FIFO_PATH + fifo_name):
+                                talon_alive = False
+                                break
+                        print('talon alive: ' + str(talon_alive))
+                        if not talon_alive:
+                            if self._status != TelescopeStatus.Disabled:
+                                print('Talon has gone away...')
+                                # Talon has just died on us!
+                                # Wake up any active commands so that they can fail
+                                self._pointing_condition.notify()
+                                self._cover_condition.notify()
 
-                        # TODO: include focus homing
-                        if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
-                            print('Status: {} -> {}'.format(self._status, TelescopeStatus.Ready))
-                            self._status = TelescopeStatus.Ready
-                        else:
-                            print('Status: {} -> {}'.format(self._status, TelescopeStatus.NotHomed))
-                            self._status = TelescopeStatus.NotHomed
+                                print('Status: {} -> {}'.format(self._status,
+                                                                TelescopeStatus.Disabled))
+                            self._status = TelescopeStatus.Disabled
+                        elif (self._status == TelescopeStatus.Disabled and
+                              self._talon_shm is not None):
+                            # Either we or talon has been restarted... find current status
+
+                            # Don't need the lock because we are reading directly from shm
+                            ra_flags = shm_read_ushort(self._talon_shm,
+                                                       SHM_RA_AXIS + SHM_AXIS_FLAGS)
+                            dec_flags = shm_read_ushort(self._talon_shm,
+                                                        SHM_DEC_AXIS + SHM_AXIS_FLAGS)
+    #                        focus_flags = shm_read_ushort(self._talon_shm, \
+    #                                                      SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+
+                            # TODO: include focus homing
+                            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
+                                print('Status: {} -> {}'.format(self._status,
+                                                                TelescopeStatus.Ready))
+                                self._status = TelescopeStatus.Ready
+                            else:
+                                print('Status: {} -> {}'.format(self._status,
+                                                                TelescopeStatus.NotHomed))
+                                self._status = TelescopeStatus.NotHomed
 
             time.sleep(TELSTAT_QUERY_DELAY)
 
@@ -286,7 +304,7 @@ class TelescopeDaemon:
             stopped = False
             while True:
                 self._pointing_condition.wait(timeout)
-                stopped = self._pointing_force_stopped or self._status == TelescopeStatus.Disabled
+                stopped = self._force_stopped or self._status == TelescopeStatus.Disabled
 
                 # Ignore the initial state change to <active_state>, which we may
                 # or may not recieve depending on the timing of the telstat loop
@@ -341,7 +359,7 @@ class TelescopeDaemon:
             'offset_ra': self._offset_ra,
             'offset_dec': self._offset_dec,
 
-            'primary_focus_um': self._primary_focus_um,
+            'telescope_focus_um': self._telescope_focus_um,
 
             'guide_reference_frame': self._guide_reference_frame,
             'guide_background_tile_size': self._guide_background_tile_size,
@@ -438,11 +456,17 @@ class TelescopeDaemon:
         if self._status == TelescopeStatus.Disabled:
             return CommandStatus.TelescopeNotInitialized
 
-        # The stop command overrides all other pointing commands
-        self._pointing_force_stopped = True
+        # The stop command overrides all other commands
+        self._force_stopped = True
 
-        if not fifo_write('Tel.in', 'Stop'):
+        tel_fifo_succeeded = fifo_write('Tel.in', 'Stop')
+        focus_fifo_succeeded = fifo_write('Focus.in', 'Stop')
+        if not tel_fifo_succeeded:
             print('Failed to write to Tel.in')
+            return CommandStatus.Failed
+
+        if not focus_fifo_succeeded:
+            print('Failed to write to Focus.in')
             return CommandStatus.Failed
 
         if self._status > TelescopeStatus.Ready:
@@ -451,9 +475,12 @@ class TelescopeDaemon:
         with self._pointing_condition:
             self._pointing_condition.notify_all()
 
+        with self._telescope_focus_condition:
+            self._telescope_focus_condition.notify_all()
+
         # Block until any other pointing commands have terminated before cleaning up
         with self._command_lock:
-            self._pointing_force_stopped = False
+            self._force_stopped = False
 
         return CommandStatus.Succeeded
 
@@ -652,6 +679,38 @@ class TelescopeDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
+    def telescope_focus(self, focus_um):
+        """Moves the main telescope focus to a specified position"""
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            with self._telescope_focus_condition:
+                focus_offset = focus_um - self._telescope_focus_um
+                if math.fabs(focus_offset) < TELESCOPE_FOCUS_TOLERANCE:
+                    return CommandStatus.Succeeded
+
+                if not fifo_write('Focus.in', str(focus_offset)):
+                    print('Failed to write to Focus.in')
+                    return CommandStatus.Failed
+
+                stopped = False
+                complete = False
+                while True:
+                    self._telescope_focus_condition.wait(FOCUS_TIMEOUT)
+                    stopped = self._force_stopped or self._status == TelescopeStatus.Disabled
+                    moved = self._telescope_focus_um != self._last_telescope_focus_um
+                    complete = math.fabs(focus_um - self._telescope_focus_um)\
+                        < TELESCOPE_FOCUS_TOLERANCE
+
+                    # Keep waiting until we reach the requested focus, timeout (haven't moved),
+                    # or have been explicitly stopped
+                    if complete or stopped or not moved:
+                        break
+
+                return CommandStatus.Succeeded if complete else CommandStatus.Failed
+
+    @Pyro4.expose
     def open_covers(self):
         """Open the mirror covers"""
         with TryLock(self._command_lock) as success:
@@ -684,19 +743,6 @@ class TelescopeDaemon:
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
-
-    @Pyro4.expose
-    def primary_focus(self, microns):
-        """Sets the primary focus to the specified position"""
-        with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            if self._status < TelescopeStatus.Ready:
-                return CommandStatus.TelescopeNotReady
-
-            # TODO: Implement primary focus command
-            return CommandStatus.Failed
 
     @Pyro4.expose
     def secondary_focus(self, steps):
