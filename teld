@@ -125,6 +125,8 @@ class TelescopeDaemon:
         self._last_cover_state = 'CV_ABSENT'
         self._cover_state = 'CV_ABSENT'
 
+        self._primary_focus_um = 0
+
         tel_status_thread = threading.Thread(target=self.poll_tel_status)
         tel_status_thread.daemon = True
         tel_status_thread.start()
@@ -152,6 +154,10 @@ class TelescopeDaemon:
 
                             self._last_cover_state = self._cover_state
                             self._cover_state = self._status_data['cover_state']
+
+                            focus = self._status_data['axes'][2]
+                            self._primary_focus_um = focus['step'] * focus['cpos'] / \
+                                (2 * math.pi * focus['df'])
 
                         if self._last_pointing_state != self._pointing_state:
                             print(self._last_pointing_state + ' -> ' + self._pointing_state)
@@ -267,6 +273,8 @@ class TelescopeDaemon:
 
             'offset_ra': self._offset_ra,
             'offset_dec': self._offset_dec,
+
+            'primary_focus_um': self._primary_focus_um,
 
             'guide_reference_frame': self._guide_reference_frame,
             'guide_background_tile_size': self._guide_background_tile_size,

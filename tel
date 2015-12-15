@@ -296,6 +296,7 @@ def status():
         print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
         print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
         print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
+        print('   Primary focus is \033[1m{:.2f}\033[0m um'.format(data['primary_focus_um']))
 
         if data['guide_reference_frame'] != None:
             print('   Guiding on frame \033[1m{}\033[0m'.format(
