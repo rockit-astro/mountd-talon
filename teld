@@ -131,7 +131,7 @@ class TelescopeDaemon:
         tel_status_thread.daemon = True
         tel_status_thread.start()
 
-    def poll_tel_status(self):
+    def __poll_tel_status(self):
         """Background thread that polls telstat for the current telescope status"""
         while True:
             # Acquire all condition locks to avoid races with commands
@@ -198,7 +198,7 @@ class TelescopeDaemon:
 
             time.sleep(TELSTAT_QUERY_DELAY)
 
-    def reset_pointing_offset(self):
+    def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
         if not fifo_write('Tel.in', 'xdelta(0,0)'):
             print('Failed to write to Tel.in')
@@ -208,7 +208,7 @@ class TelescopeDaemon:
         self._offset_dec = 0
         return True
 
-    def point(self, fifo_command, active_state, final_state, timeout):
+    def __point(self, fifo_command, active_state, final_state, timeout):
         """Issues a pointing command and blocks until the final state is reached (or timeout)"""
         with self._pointing_condition:
             if not fifo_write('Tel.in', fifo_command):
@@ -231,7 +231,7 @@ class TelescopeDaemon:
 
         return True
 
-    def slew_to_radec(self, ra_radians, dec_radians):
+    def __slew_to_radec(self, ra_radians, dec_radians):
         """Quickly slew to a specified RA and Dec"""
         # Uses the "HA: Dec:" command to slew
         with self._status_data_lock:
@@ -239,9 +239,9 @@ class TelescopeDaemon:
 
         ha_radians = lst_radians - ra_radians
         command = 'HA: {} Dec: {}'.format(ha_radians, dec_radians)
-        return self.point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT)
+        return self.__point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT)
 
-    def move_covers(self, fifo_command, active_state, final_state, timeout):
+    def __move_covers(self, fifo_command, active_state, final_state, timeout):
         """Issues a cover command and blocks until the final state is reached (or timeout)"""
         with self._cover_condition:
             if not fifo_write('Cover.in', fifo_command):
@@ -327,11 +327,11 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Homing HA axis...')
-            if not self.point('homeH', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
+            if not self.__point('homeH', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Homing Dec axis...')
-            if not self.point('homeD', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
+            if not self.__point('homeD', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
             # TODO: Focus home
@@ -349,21 +349,21 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
-            if not self.point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Finding HA limits...')
-            if not self.point('limitsH', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
+            if not self.__point('limitsH', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
                 return CommandStatus.Failed
 
-            if not self.point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Finding Dec limits...')
-            if not self.point('limitsD', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
+            if not self.__point('limitsD', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
                 return CommandStatus.Failed
 
-            if not self.point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             # TODO: Focus limits
@@ -405,13 +405,13 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotReady
 
             command = 'Alt: {} Az: {}'.format(alt_radians, az_radians)
-            if not self.point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             if self._status > TelescopeStatus.Ready:
                 self._status = TelescopeStatus.Ready
 
-            if not self.reset_pointing_offset():
+            if not self.__reset_pointing_offset():
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -428,13 +428,13 @@ class TelescopeDaemon:
 
             # TODO: Work out if the requested coords are outside
             # limits and return an error immediately
-            if not self.slew_to_radec(ra_radians, dec_radians):
+            if not self.__slew_to_radec(ra_radians, dec_radians):
                 return CommandStatus.Failed
 
             if self._status > TelescopeStatus.Ready:
                 self._status = TelescopeStatus.Ready
 
-            if not self.reset_pointing_offset():
+            if not self.__reset_pointing_offset():
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -450,15 +450,15 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotReady
 
             # Slewing is much faster than tracking
-            if not self.slew_to_radec(ra_radians, dec_radians):
+            if not self.__slew_to_radec(ra_radians, dec_radians):
                 return CommandStatus.Failed
 
             # Do the final adjustment and start tracking
             command = 'RA: {} Dec: {}'.format(ra_radians, dec_radians)
-            if not self.point(command, 'TS_HUNTING', 'TS_TRACKING', SLEW_TIMEOUT):
+            if not self.__point(command, 'TS_HUNTING', 'TS_TRACKING', SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
-            if not self.reset_pointing_offset():
+            if not self.__reset_pointing_offset():
                 return CommandStatus.Failed
 
             self._status = TelescopeStatus.Tracking
@@ -500,7 +500,7 @@ class TelescopeDaemon:
                 ra_radians += ra_delta_radians
                 dec_radians += dec_delta_radians
 
-                if not self.slew_to_radec(ra_radians, dec_radians):
+                if not self.__slew_to_radec(ra_radians, dec_radians):
                     return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -602,7 +602,7 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Opening covers...')
-            if not self.move_covers('coveropen', 'CV_OPENING', 'CV_OPEN', COVER_TIMEOUT):
+            if not self.__move_covers('coveropen', 'CV_OPENING', 'CV_OPEN', COVER_TIMEOUT):
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -618,7 +618,7 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Opening covers...')
-            if not self.move_covers('coverclose', 'CV_CLOSING', 'CV_CLOSED', COVER_TIMEOUT):
+            if not self.__move_covers('coverclose', 'CV_CLOSING', 'CV_CLOSED', COVER_TIMEOUT):
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
