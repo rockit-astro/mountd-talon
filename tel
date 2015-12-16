@@ -146,7 +146,7 @@ def park(args):
             print('error: unknown park position \'' + args[0] + '\'')
             return -1
 
-        alt_radians, az_radians, desc = PARK_POSITIONS.get(args[0])
+        alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
         with Pyro4.Proxy(DAEMON_URI) as teld:
             return teld.slew_altaz(alt_radians, az_radians)
 
