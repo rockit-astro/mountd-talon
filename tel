@@ -265,11 +265,11 @@ def status():
     with Pyro4.Proxy(DAEMON_URI) as teld:
         data = teld.report_status()
 
-        state_desc = u'\033[1m\033[93mUNKNOWN\033[0m',
+        state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
         if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
             state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
 
-        cover_desc = '\033[1m\033[93mUNKNOWN\033[0m',
+        cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
         if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
             cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
 
