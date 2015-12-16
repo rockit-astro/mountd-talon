@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 
+import ephem
+import math
 import sysv_ipc
 import struct
 
 TALON_SHM_KEY = 0x4e56361a
 SHM_MJD_OFFSET = 0
+
+# Site properties
+SHM_LATITUDE_OFFSET = 8
+SHM_LONGITUDE_OFFSET = 16
+SHM_TEMPERATURE_OFFSET = 32
+SHM_PRESSURE_OFFSET = 40
+SHM_ELEVATION_OFFSET = 48
+
+# Telescope properties
 SHM_RA_OFFSET = 88
 SHM_DEC_OFFSET = 96
 SHM_TEL_STATE_OFFSET = 920
@@ -46,5 +57,12 @@ print('   step: {}'.format(shm_read_int(data, SHM_FOCUS_AXIS + SHM_AXIS_STEP)))
 print('   df: {}'.format(shm_read_double(data, SHM_FOCUS_AXIS + SHM_AXIS_DF)))
 print('   poslim: {}'.format(shm_read_double(data, SHM_FOCUS_AXIS + SHM_AXIS_POSLIM)))
 print('   neglim: {}'.format(shm_read_double(data, SHM_FOCUS_AXIS + SHM_AXIS_NEGLIM)))
-# data.detach()
+
+obs = ephem.Observer()
+obs.lon = shm_read_double(data, SHM_LONGITUDE_OFFSET)
+obs.lat = shm_read_double(data, SHM_LATITUDE_OFFSET)
+obs.elevation = shm_read_double(data, SHM_ELEVATION_OFFSET) * 6.37816e6
+obs.temp = shm_read_double(data, SHM_TEMPERATURE_OFFSET)
+obs.pressure = shm_read_double(data, SHM_PRESSURE_OFFSET)
+print('sidereal time: {}'.format(float(obs.sidereal_time()) * 12 / math.pi))
 
