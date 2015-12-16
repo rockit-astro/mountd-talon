@@ -23,22 +23,50 @@
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-self-use
 
-import json
 import math
 import os
+import struct
 import subprocess
+import sysv_ipc
 import threading
 import time
+import ephem
 import Pyro4
 
 PYRO_HOST = 'localhost'
 PYRO_PORT = 9003
 
-TELSTAT_PATH = '/usr/local/telescope/bin/telstat'
 # TODO: Reference installed copy
 PIXELSHIFT_PATH = '/home/saft/src/pixelshift/pixelshift'
 FIFO_PATH = '/usr/local/telescope/comm/'
 FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
+
+# Shared memory offsets
+TALON_SHM_KEY = 0x4e56361a
+SHM_MJD_OFFSET = 0
+
+SHM_RA_OFFSET = 88
+SHM_DEC_OFFSET = 96
+
+# Site properties
+SHM_LATITUDE_OFFSET = 8
+SHM_LONGITUDE_OFFSET = 16
+SHM_TEMPERATURE_OFFSET = 32
+SHM_PRESSURE_OFFSET = 40
+SHM_ELEVATION_OFFSET = 48
+
+# Telescope properties
+SHM_TEL_STATE_OFFSET = 920
+SHM_COVER_STATE_OFFSET = 976
+SHM_RA_AXIS = 248
+SHM_DEC_AXIS = SHM_RA_AXIS + 120
+SHM_FOCUS_AXIS = SHM_RA_AXIS + 360
+SHM_AXIS_FLAGS = 1
+SHM_AXIS_CPOS = 96
+SHM_AXIS_STEP = 4
+SHM_AXIS_DF = 80
+SHM_AXIS_POSLIM = 56
+SHM_AXIS_NEGLIM = 64
 
 # Delay between telstat queries (in seconds)
 TELSTAT_QUERY_DELAY = 1
@@ -77,6 +105,16 @@ class TelescopeStatus:
     """Status of the telescope hardware"""
     Disabled, NotHomed, Ready, Tracking, Guiding = range(5)
 
+class TelState:
+    """Talon TelState enum"""
+    Stopped, Hunting, Tracking, Slewing, Homing, Limiting = range(6)
+    Names = ['TS_STOPPED', 'TS_HUNTING', 'TS_TRACKING', 'TS_SLEWING', 'TS_HOMING', 'TS_LIMITING']
+
+class CoverState:
+    """Talon CoverState enum"""
+    Absent, Idle, Opening, Closing, Open, Closed = range(6)
+    Names = ['CV_ABSENT', 'CV_IDLE', 'CV_OPENING', 'CV_CLOSING', 'CV_OPEN', 'CV_CLOSED']
+
 class TryLock(object):
     """Helper object for use with `with` statements"""
     def __init__(self, lock):
@@ -114,22 +152,64 @@ class TelescopeDaemon:
 
         self._status = TelescopeStatus.Disabled
 
-        # Status data from telstat
-        self._status_data = None
-        self._status_data_lock = threading.Lock()
+        # Status data from shared memory
+        self._talon_shm = None
+        self._talon_shm_lock = threading.Lock()
 
-        self._last_pointing_state = 'TS_STOPPED'
-        self._pointing_state = 'TS_STOPPED'
+        self._observatory = None
+        self._current_ra = 0
+        self._current_dec = 0
+        self._last_pointing_state = TelState.Stopped
+        self._pointing_state = TelState.Stopped
         self._pointing_force_stopped = False
 
-        self._last_cover_state = 'CV_ABSENT'
-        self._cover_state = 'CV_ABSENT'
+        self._last_cover_state = CoverState.Absent
+        self._cover_state = CoverState.Absent
 
         self._primary_focus_um = 0
 
-        tel_status_thread = threading.Thread(target=self.poll_tel_status)
+        tel_status_thread = threading.Thread(target=self.__poll_tel_status)
         tel_status_thread.daemon = True
         tel_status_thread.start()
+
+    def __update_state_from_talon_shm(self):
+        """Update local copies of state variables from talon shared memory segment"""
+        try:
+            if self._talon_shm is None:
+                self._talon_shm = sysv_ipc.SharedMemory(TALON_SHM_KEY)
+                obs = ephem.Observer()
+                # pylint: disable=assigning-non-slot
+                obs.lon = shm_read_double(self._talon_shm, SHM_LONGITUDE_OFFSET)
+                obs.lat = shm_read_double(self._talon_shm, SHM_LATITUDE_OFFSET)
+                obs.elevation = shm_read_double(self._talon_shm, SHM_ELEVATION_OFFSET) * 6.37816e6
+                obs.temp = shm_read_double(self._talon_shm, SHM_TEMPERATURE_OFFSET)
+                obs.pressure = shm_read_double(self._talon_shm, SHM_PRESSURE_OFFSET)
+                # pylint: enable=assigning-non-slot
+                self._observatory = obs
+
+            with self._talon_shm_lock:
+                self._last_pointing_state = self._pointing_state
+                self._pointing_state = shm_read_int(self._talon_shm,
+                                                    SHM_TEL_STATE_OFFSET)
+
+                self._last_cover_state = self._cover_state
+                self._cover_state = shm_read_int(self._talon_shm,
+                                                 SHM_COVER_STATE_OFFSET)
+
+                self._current_ra = shm_read_double(self._talon_shm, SHM_RA_OFFSET)
+                self._current_dec = shm_read_double(self._talon_shm, SHM_DEC_OFFSET)
+
+                focus_step = shm_read_int(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_STEP)
+                focus_pos = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_CPOS)
+                focus_df = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS +SHM_AXIS_DF)
+
+                self._primary_focus_um = focus_step * focus_pos / \
+                    (2 * math.pi * focus_df)
+
+        except sysv_ipc.ExistentialError:
+            print('Talon shared memory segment does not exist')
+        except Exception as e:
+            print('Failed parsing shared memory: ' + str(e))
 
     def __poll_tel_status(self):
         """Background thread that polls telstat for the current telescope status"""
@@ -137,35 +217,17 @@ class TelescopeDaemon:
             # Acquire all condition locks to avoid races with commands
             with self._cover_condition:
                 with self._pointing_condition:
-                    new_status = None
-                    try:
-                        output = subprocess.check_output(
-                            TELSTAT_PATH, universal_newlines=True, timeout=5)
-                        new_status = json.loads(output)
-                    except:
-                        print("Failed to query telstat")
+                    self.__update_state_from_talon_shm()
 
-                    if new_status is not None:
-                        with self._status_data_lock:
-                            self._status_data = new_status
+                    if self._last_pointing_state != self._pointing_state:
+                        print(TelState.Names[self._last_pointing_state] + ' -> ' + \
+                              TelState.Names[self._pointing_state])
+                        self._pointing_condition.notify()
 
-                            self._last_pointing_state = self._pointing_state
-                            self._pointing_state = self._status_data['tel_state']
-
-                            self._last_cover_state = self._cover_state
-                            self._cover_state = self._status_data['cover_state']
-
-                            focus = self._status_data['axes'][2]
-                            self._primary_focus_um = focus['step'] * focus['cpos'] / \
-                                (2 * math.pi * focus['df'])
-
-                        if self._last_pointing_state != self._pointing_state:
-                            print(self._last_pointing_state + ' -> ' + self._pointing_state)
-                            self._pointing_condition.notify()
-
-                        if self._last_cover_state != self._cover_state:
-                            print(self._last_cover_state + ' -> ' + self._cover_state)
-                            self._cover_condition.notify()
+                    if self._last_cover_state != self._cover_state:
+                        print(CoverState.Names[self._last_cover_state] + ' -> ' + \
+                              CoverState.Names[self._cover_state])
+                        self._cover_condition.notify()
 
                     # Check that talon is still running
                     talon_alive = True
@@ -185,11 +247,17 @@ class TelescopeDaemon:
                             print('Status: {} -> {}'.format(self._status,
                                                             TelescopeStatus.Disabled))
                         self._status = TelescopeStatus.Disabled
-                    elif self._status == TelescopeStatus.Disabled:
-                        # Talon has been restarted
-                        axes = self._status_data['axes']
-                        # TODO: focus homing
-                        if bool(axes[0]['ishomed']) and bool(axes[1]['ishomed']):
+                    elif self._status == TelescopeStatus.Disabled and self._talon_shm is not None:
+                        # Either we or talon has been restarted... find current status
+
+                        # Don't need the lock because we are reading directly from shm
+                        ra_flags = shm_read_ushort(self._talon_shm, SHM_RA_AXIS + SHM_AXIS_FLAGS)
+                        dec_flags = shm_read_ushort(self._talon_shm, SHM_DEC_AXIS + SHM_AXIS_FLAGS)
+#                        focus_flags = shm_read_ushort(self._talon_shm, \
+#                                                      SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+
+                        # TODO: include focus homing
+                        if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
                             print('Status: {} -> {}'.format(self._status, TelescopeStatus.Ready))
                             self._status = TelescopeStatus.Ready
                         else:
@@ -234,12 +302,9 @@ class TelescopeDaemon:
     def __slew_to_radec(self, ra_radians, dec_radians):
         """Quickly slew to a specified RA and Dec"""
         # Uses the "HA: Dec:" command to slew
-        with self._status_data_lock:
-            lst_radians = self._status_data['lst'] * math.pi / 12
-
-        ha_radians = lst_radians - ra_radians
+        ha_radians = float(self._observatory.sidereal_time()) - ra_radians
         command = 'HA: {} Dec: {}'.format(ha_radians, dec_radians)
-        return self.__point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT)
+        return self.__point(command, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT)
 
     def __move_covers(self, fifo_command, active_state, final_state, timeout):
         """Issues a cover command and blocks until the final state is reached (or timeout)"""
@@ -268,9 +333,11 @@ class TelescopeDaemon:
         """Returns a dictionary containing the current telescope state"""
         data = {
             'state': self._status,
-            'pointing_state': self._pointing_state,
-            'cover_state': self._cover_state,
+            'pointing_state': TelState.Names[self._pointing_state],
+            'cover_state': CoverState.Names[self._cover_state],
 
+            'ra': self._current_ra,
+            'dec': self._current_dec,
             'offset_ra': self._offset_ra,
             'offset_dec': self._offset_dec,
 
@@ -283,12 +350,7 @@ class TelescopeDaemon:
 
             'guide_offset_ra': self._guide_offset_ra,
             'guide_offset_dec': self._guide_offset_dec,
-
-            'telstat': {}
         }
-
-        with self._status_data_lock:
-            data['telstat'].update(self._status_data)
 
         return data
 
@@ -327,11 +389,11 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Homing HA axis...')
-            if not self.__point('homeH', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
+            if not self.__point('homeH', TelState.Homing, TelState.Stopped, HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Homing Dec axis...')
-            if not self.__point('homeD', 'TS_HOMING', 'TS_STOPPED', HOMING_TIMEOUT):
+            if not self.__point('homeD', TelState.Homing, TelState.Stopped, HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
             # TODO: Focus home
@@ -349,21 +411,22 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
-            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped,
+                                SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Finding HA limits...')
-            if not self.__point('limitsH', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
+            if not self.__point('limitsH', TelState.Limiting, TelState.Stopped, LIMIT_TIMEOUT):
                 return CommandStatus.Failed
 
-            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             print('Finding Dec limits...')
-            if not self.__point('limitsD', 'TS_LIMITING', 'TS_STOPPED', LIMIT_TIMEOUT):
+            if not self.__point('limitsD', TelState.Limiting, TelState.Stopped, LIMIT_TIMEOUT):
                 return CommandStatus.Failed
 
-            if not self.__point(SLEW_TO_ZENITH, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             # TODO: Focus limits
@@ -405,7 +468,7 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotReady
 
             command = 'Alt: {} Az: {}'.format(alt_radians, az_radians)
-            if not self.__point(command, 'TS_SLEWING', 'TS_STOPPED', SLEW_TIMEOUT):
+            if not self.__point(command, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             if self._status > TelescopeStatus.Ready:
@@ -455,7 +518,7 @@ class TelescopeDaemon:
 
             # Do the final adjustment and start tracking
             command = 'RA: {} Dec: {}'.format(ra_radians, dec_radians)
-            if not self.__point(command, 'TS_HUNTING', 'TS_TRACKING', SLEW_TIMEOUT):
+            if not self.__point(command, TelState.Hunting, TelState.Tracking, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
             if not self.__reset_pointing_offset():
@@ -493,12 +556,9 @@ class TelescopeDaemon:
                 self._offset_dec = offset_dec
             else:
                 # Otherwise just slew to the updated position
-                with self._status_data_lock:
-                    ra_radians = float(self._status_data['ra'])
-                    dec_radians = float(self._status_data['dec'])
-
-                ra_radians += ra_delta_radians
-                dec_radians += dec_delta_radians
+                with self._talon_shm_lock:
+                    ra_radians = self._current_ra + ra_delta_radians
+                    dec_radians = self._current_dec + dec_delta_radians
 
                 if not self.__slew_to_radec(ra_radians, dec_radians):
                     return CommandStatus.Failed
@@ -602,7 +662,8 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Opening covers...')
-            if not self.__move_covers('coveropen', 'CV_OPENING', 'CV_OPEN', COVER_TIMEOUT):
+            if not self.__move_covers('coveropen', CoverState.Opening, CoverState.Open,
+                                      COVER_TIMEOUT):
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -618,7 +679,8 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotInitialized
 
             print('Opening covers...')
-            if not self.__move_covers('coverclose', 'CV_CLOSING', 'CV_CLOSED', COVER_TIMEOUT):
+            if not self.__move_covers('coverclose', CoverState.Closing, CoverState.Closed,
+                                      COVER_TIMEOUT):
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -675,6 +737,18 @@ def fifo_write(fifo_name, fifo_data):
         print('Writing to ' + fifo_name+ ': ' + fifo_data)
         fifo.write(fifo_data+'\n')
         return True
+
+def shm_read_double(shm, offset):
+    """read a double from a specified offset in a specified shared memory segment"""
+    return struct.unpack_from('d', shm.read(8, offset))[0]
+
+def shm_read_int(shm, offset):
+    """read an int from a specified offset in a specified shared memory segment"""
+    return struct.unpack_from('i', shm.read(4, offset))[0]
+
+def shm_read_ushort(shm, offset):
+    """read a ushort from a specified offset in a specified shared memory segment"""
+    return struct.unpack_from('H', shm.read(2, offset))[0]
 
 def spawn_daemon():
     """Spawns the daemon and registers it with Pyro"""
