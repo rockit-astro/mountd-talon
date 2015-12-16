@@ -273,20 +273,16 @@ def status():
         if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
             cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
 
-        ra_desc = 'UNKNOWN'
-        ra_offset_desc = ''
-        dec_desc = 'UNKNOWN'
-        dec_offset_desc = ''
-        telstat = data['telstat']
-        if len(telstat) > 0:
-            ra_desc = sexagesimal(float(telstat['ra']) * 12 / math.pi)
-            dec_desc = sexagesimal(float(telstat['dec']) * 180 / math.pi)
+        ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
+        dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
 
+        ra_offset_desc = ''
         ra_offset = float(data['offset_ra'])
         if ra_offset != 0:
             ra_offset_coords = sexagesimal(ra_offset * 12 / math.pi)
             ra_offset_desc = ' with offset \033[1m' + ra_offset_coords + '\033[0m'
 
+        dec_offset_desc = ''
         dec_offset = float(data['offset_dec'])
         if dec_offset != 0:
             dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
