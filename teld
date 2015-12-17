@@ -103,6 +103,9 @@ class CommandStatus:
     TelescopeNotTracking = 12
     TelescopeNotGuiding = 13
 
+    OutsideHALimits = 20
+    OutsideDecLimits = 21
+
 class TelescopeStatus:
     """Status of the telescope hardware"""
     Disabled, NotHomed, Ready, Tracking, Guiding = range(5)
@@ -173,6 +176,11 @@ class TelescopeDaemon:
         self._telescope_focus_um = 0
         self._last_telescope_focus_um = 0
 
+        self._ha_positive_limit = 0
+        self._ha_negative_limit = 0
+        self._dec_positive_limit = 0
+        self._dec_negative_limit = 0
+
         tel_status_thread = threading.Thread(target=self.__poll_tel_status)
         tel_status_thread.daemon = True
         tel_status_thread.start()
@@ -192,6 +200,15 @@ class TelescopeDaemon:
                 obs.epoch = ephem.J2000
                 # pylint: enable=assigning-non-slot
                 self._observatory = obs
+
+                self._ha_positive_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_POSLIM)
+                self._ha_negative_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_NEGLIM)
+                self._dec_positive_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_POSLIM)
+                self._dec_negative_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             with self._talon_shm_lock:
                 self._last_pointing_state = self._pointing_state
@@ -473,12 +490,24 @@ class TelescopeDaemon:
             if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
+            with self._talon_shm_lock:
+                self._ha_positive_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_POSLIM)
+                self._ha_negative_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_NEGLIM)
+
             print('Finding Dec limits...')
             if not self.__point('limitsD', TelState.Limiting, TelState.Stopped, LIMIT_TIMEOUT):
                 return CommandStatus.Failed
 
             if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
+
+            with self._talon_shm_lock:
+                self._dec_positive_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_POSLIM)
+                self._dec_negative_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             # TODO: Focus limits
             return CommandStatus.Succeeded
@@ -527,6 +556,21 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
+            # Check against telescope limits
+            ra, dec = self.__ra_dec_from_alt_az(alt_radians, az_radians)
+            ha, dec = self.__ha_dec_from_ra_dec(ra, dec)
+
+            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+                print('failed to move to alt {} az {}; ha {} outside limit ({}, {})'.format(
+                    alt_radians, az_radians, ha, self._ha_negative_limit, self._ha_positive_limit))
+                return CommandStatus.OutsideHALimits
+
+            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+                print('failed to move to alt {} az {}; dec {} outside limit ({}, {})'.format(
+                    alt_radians, az_radians, dec, self._dec_negative_limit,
+                    self._dec_positive_limit))
+                return CommandStatus.OutsideDecLimits
+
             command = 'Alt: {} Az: {}'.format(alt_radians, az_radians)
             if not self.__point(command, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT):
                 return CommandStatus.Failed
@@ -549,8 +593,19 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
-            # TODO: Work out if the requested coords are outside
-            # limits and return an error immediately
+            # Check against telescope limits
+            ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
+            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+                print('failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
+                    ra_radians, dec_radians, ha, self._ha_negative_limit, self._ha_positive_limit))
+                return CommandStatus.OutsideHALimits
+
+            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+                print('failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
+                    ra_radians, dec_radians, dec, self._dec_negative_limit,
+                    self._dec_positive_limit))
+                return CommandStatus.OutsideDecLimits
+
             if not self.__slew_to_radec(ra_radians, dec_radians):
                 return CommandStatus.Failed
 
@@ -571,6 +626,19 @@ class TelescopeDaemon:
 
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
+
+            # Check against telescope limits
+            ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
+            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+                print('failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
+                    ra_radians, dec_radians, ha, self._ha_negative_limit, self._ha_positive_limit))
+                return CommandStatus.OutsideHALimits
+
+            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+                print('failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
+                    ra_radians, dec_radians, dec, self._dec_negative_limit,
+                    self._dec_positive_limit))
+                return CommandStatus.OutsideDecLimits
 
             # Slewing is much faster than tracking
             if not self.__slew_to_radec(ra_radians, dec_radians):

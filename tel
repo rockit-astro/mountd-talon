@@ -45,6 +45,8 @@ STATUS_CODES = {
     11: 'error: telescope has not been homed',
     12: 'error: telescope is not tracking',
     13: 'error: telescope is not guiding',
+    20: 'error: requested coordinates outside HA limits',
+    21: 'error: requested coordinates outside Dec limits',
 
     # tel specific codes
     -100: 'error: terminated by user',
