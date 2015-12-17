@@ -296,6 +296,10 @@ def status():
         ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
         dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
 
+        alt_desc = sexagesimal(float(data['alt']) * 180 / math.pi)
+        az_desc = sexagesimal(float(data['az']) * 180 / math.pi)
+        lst_desc = sexagesimal(float(data['lst']) * 12 / math.pi)
+
         ra_offset_desc = ''
         ra_offset = float(data['offset_ra'])
         if ra_offset != 0:
@@ -312,6 +316,9 @@ def status():
         print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
         print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
         print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
+        print('   Altitude is \033[1m' + alt_desc + '\033[0m')
+        print('   Azimuth is \033[1m' + az_desc + '\033[0m')
+        print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
         print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
 
         if data['guide_reference_frame'] != None:

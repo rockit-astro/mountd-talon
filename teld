@@ -377,6 +377,8 @@ class TelescopeDaemon:
     @Pyro4.expose
     def report_status(self):
         """Returns a dictionary containing the current telescope state"""
+        alt, az = self.__alt_az_from_ra_dec(self._current_ra, self._current_dec)
+
         data = {
             'state': self._status,
             'pointing_state': TelState.Names[self._pointing_state],
@@ -386,6 +388,10 @@ class TelescopeDaemon:
             'dec': self._current_dec,
             'offset_ra': self._offset_ra,
             'offset_dec': self._offset_dec,
+
+            'alt': alt,
+            'az': az,
+            'lst': self.__local_sidereal_time(),
 
             'telescope_focus_um': self._telescope_focus_um,
 
