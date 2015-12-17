@@ -51,8 +51,6 @@ SHM_DEC_OFFSET = 96
 # Site properties
 SHM_LATITUDE_OFFSET = 8
 SHM_LONGITUDE_OFFSET = 16
-SHM_TEMPERATURE_OFFSET = 32
-SHM_PRESSURE_OFFSET = 40
 SHM_ELEVATION_OFFSET = 48
 
 # Telescope properties
@@ -184,13 +182,14 @@ class TelescopeDaemon:
         try:
             if self._talon_shm is None:
                 self._talon_shm = sysv_ipc.SharedMemory(TALON_SHM_KEY)
+
                 obs = ephem.Observer()
                 # pylint: disable=assigning-non-slot
                 obs.lon = shm_read_double(self._talon_shm, SHM_LONGITUDE_OFFSET)
                 obs.lat = shm_read_double(self._talon_shm, SHM_LATITUDE_OFFSET)
                 obs.elevation = shm_read_double(self._talon_shm, SHM_ELEVATION_OFFSET) * 6.37816e6
-                obs.temp = shm_read_double(self._talon_shm, SHM_TEMPERATURE_OFFSET)
-                obs.pressure = shm_read_double(self._talon_shm, SHM_PRESSURE_OFFSET)
+                obs.pressure = 0
+                obs.epoch = ephem.J2000
                 # pylint: enable=assigning-non-slot
                 self._observatory = obs
 
