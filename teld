@@ -284,6 +284,34 @@ class TelescopeDaemon:
 
             time.sleep(TELSTAT_QUERY_DELAY)
 
+    def __local_sidereal_time(self):
+        """Returns the local sidereal time in radians"""
+        self._observatory.date = ephem.now()
+        return float(self._observatory.sidereal_time())
+
+    def __alt_az_from_ra_dec(self, ra_radians, dec_radians):
+        """Returns the Alt and Az in radians for a given RA and Dec"""
+        coords = ephem.FixedBody()
+        # pylint: disable=protected-access
+        coords._ra = ra_radians
+        coords._dec = dec_radians
+        coords._epoch = ephem.J2000
+        # pylint: enable=protected-access
+
+        self._observatory.date = ephem.now()
+        coords.compute(self._observatory)
+        return float(coords.alt), float(coords.az)
+
+    def __ra_dec_from_alt_az(self, alt_radians, az_radians):
+        """Returns the HA and Dec in radians for a given Alt and Az"""
+        self._observatory.date = ephem.now()
+        ra, dec = self._observatory.radec_of(az_radians, alt_radians)
+        return float(ra), float(dec)
+
+    def __ha_dec_from_ra_dec(self, ra_radians, dec_radians):
+        """Returns the HA and Dec in radians for a given RA and Dec"""
+        return self.__local_sidereal_time() - ra_radians, dec_radians
+
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
         if not fifo_write('Tel.in', 'xdelta(0,0)'):
@@ -320,8 +348,8 @@ class TelescopeDaemon:
     def __slew_to_radec(self, ra_radians, dec_radians):
         """Quickly slew to a specified RA and Dec"""
         # Uses the "HA: Dec:" command to slew
-        ha_radians = float(self._observatory.sidereal_time()) - ra_radians
-        command = 'HA: {} Dec: {}'.format(ha_radians, dec_radians)
+        ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
+        command = 'HA: {} Dec: {}'.format(ha, dec)
         return self.__point(command, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT)
 
     def __move_covers(self, fifo_command, active_state, final_state, timeout):
