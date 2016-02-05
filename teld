@@ -23,6 +23,7 @@
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-self-use
 
+import glob
 import math
 import os
 import struct
@@ -169,7 +170,6 @@ class TelescopeDaemon:
         self._last_pointing_state = TelState.Stopped
         self._pointing_state = TelState.Stopped
 
-
         self._last_cover_state = CoverState.Absent
         self._cover_state = CoverState.Absent
 
@@ -181,6 +181,9 @@ class TelescopeDaemon:
         self._dec_positive_limit = 0
         self._dec_negative_limit = 0
 
+        self._last_talon_mjd = 0
+        self._talon_mjd = 0
+
         tel_status_thread = threading.Thread(target=self.__poll_tel_status)
         tel_status_thread.daemon = True
         tel_status_thread.start()
@@ -188,6 +191,7 @@ class TelescopeDaemon:
     def __update_state_from_talon_shm(self):
         """Update local copies of state variables from talon shared memory segment"""
         try:
+            talon_alive = True
             if self._talon_shm is None:
                 self._talon_shm = sysv_ipc.SharedMemory(TALON_SHM_KEY)
 
@@ -211,28 +215,75 @@ class TelescopeDaemon:
                                                            SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             with self._talon_shm_lock:
-                self._last_pointing_state = self._pointing_state
-                self._pointing_state = shm_read_int(self._talon_shm,
-                                                    SHM_TEL_STATE_OFFSET)
+                self._last_talon_mjd = self._talon_mjd
+                self._talon_mjd = shm_read_double(self._talon_shm, SHM_MJD_OFFSET)
 
-                self._last_cover_state = self._cover_state
-                self._cover_state = shm_read_int(self._talon_shm,
-                                                 SHM_COVER_STATE_OFFSET)
+                # The first stage of talon boot up zeros the shared memory.
+                # Wait for it to be updated with sensible data
+                if self._talon_mjd > 0:
+                    self._last_pointing_state = self._pointing_state
+                    self._pointing_state = shm_read_int(self._talon_shm,
+                                                        SHM_TEL_STATE_OFFSET)
 
-                self._current_ra = shm_read_double(self._talon_shm, SHM_RA_OFFSET)
-                self._current_dec = shm_read_double(self._talon_shm, SHM_DEC_OFFSET)
+                    self._last_cover_state = self._cover_state
+                    self._cover_state = shm_read_int(self._talon_shm,
+                                                     SHM_COVER_STATE_OFFSET)
 
-                focus_step = shm_read_int(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_STEP)
-                focus_pos = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_CPOS)
-                focus_df = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS +SHM_AXIS_DF)
-                self._last_telescope_focus_um = self._telescope_focus_um
-                self._telescope_focus_um = focus_step * focus_pos / \
-                    (2 * math.pi * focus_df)
+                    self._current_ra = shm_read_double(self._talon_shm, SHM_RA_OFFSET)
+                    self._current_dec = shm_read_double(self._talon_shm, SHM_DEC_OFFSET)
+
+                    focus_step = shm_read_int(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_STEP)
+                    focus_pos = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_CPOS)
+                    focus_df = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS +SHM_AXIS_DF)
+                    self._last_telescope_focus_um = self._telescope_focus_um
+                    self._telescope_focus_um = focus_step * focus_pos / \
+                        (2 * math.pi * focus_df)
 
         except sysv_ipc.ExistentialError:
-            print('Talon shared memory segment does not exist')
+            # Talon has not been initialized since last boot
+            talon_alive = False
         except Exception as e:
+            # Some other unexpected error occurred - log it
             print('Failed parsing shared memory: ' + str(e))
+            talon_alive = False
+
+        # Talon stops updating the shared memory if the hardware crashes
+        # We use this as a proxy for checking that the daemons are operating correctly
+        talon_alive = talon_alive and self._talon_mjd > 0 and self._last_talon_mjd != self._talon_mjd
+
+        if not talon_alive and self._status != TelescopeStatus.Disabled:
+            # Talon has just died on us!
+            print('Talon is offline')
+
+            # Wake up any active commands so that they can fail
+            self._pointing_condition.notify()
+            self._cover_condition.notify()
+
+            # Kill telescoped and csimcd
+            print('Killing rund-spawned daemons')
+            subprocess.call(['/usr/bin/killall', 'rund'])
+
+            # Clear interprocess-communication channels
+            for f in glob.glob('/usr/local/telescope/comm/*'):
+                print('Removing ' + f)
+                os.unlink(f)
+
+            self._status = TelescopeStatus.Disabled
+        elif talon_alive and self._status == TelescopeStatus.Disabled:
+            # Either we or talon has been restarted... find current status
+            print('Talon is online')
+
+            with self._talon_shm_lock:
+                ra_flags = shm_read_ushort(self._talon_shm, SHM_RA_AXIS + SHM_AXIS_FLAGS)
+                dec_flags = shm_read_ushort(self._talon_shm, SHM_DEC_AXIS + SHM_AXIS_FLAGS)
+#               focus_flags = shm_read_ushort(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+
+            # Check whether the axes are already homed
+            # TODO: include focus homing
+            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
+                self._status = TelescopeStatus.Ready
+            else:
+                self._status = TelescopeStatus.NotHomed
 
     def __poll_tel_status(self):
         """Background thread that polls telstat for the current telescope status"""
@@ -241,6 +292,7 @@ class TelescopeDaemon:
             with self._cover_condition:
                 with self._pointing_condition:
                     with self._telescope_focus_condition:
+                        # Update state from shared memory
                         self.__update_state_from_talon_shm()
 
                         if self._last_pointing_state != self._pointing_state:
@@ -257,46 +309,6 @@ class TelescopeDaemon:
                             print('tel focus: {:2f} -> {:2f}'.format(self._last_telescope_focus_um,
                                                                      self._telescope_focus_um))
                             self._telescope_focus_condition.notify()
-
-                        # Check that talon is still running
-                        talon_alive = True
-                        for fifo_name in FIFO_NAMES:
-                            if not os.path.exists(FIFO_PATH + fifo_name):
-                                talon_alive = False
-                                break
-                        print('talon alive: ' + str(talon_alive))
-                        if not talon_alive:
-                            if self._status != TelescopeStatus.Disabled:
-                                print('Talon has gone away...')
-                                # Talon has just died on us!
-                                # Wake up any active commands so that they can fail
-                                self._pointing_condition.notify()
-                                self._cover_condition.notify()
-
-                                print('Status: {} -> {}'.format(self._status,
-                                                                TelescopeStatus.Disabled))
-                            self._status = TelescopeStatus.Disabled
-                        elif (self._status == TelescopeStatus.Disabled and
-                              self._talon_shm is not None):
-                            # Either we or talon has been restarted... find current status
-
-                            # Don't need the lock because we are reading directly from shm
-                            ra_flags = shm_read_ushort(self._talon_shm,
-                                                       SHM_RA_AXIS + SHM_AXIS_FLAGS)
-                            dec_flags = shm_read_ushort(self._talon_shm,
-                                                        SHM_DEC_AXIS + SHM_AXIS_FLAGS)
-    #                        focus_flags = shm_read_ushort(self._talon_shm, \
-    #                                                      SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
-
-                            # TODO: include focus homing
-                            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
-                                print('Status: {} -> {}'.format(self._status,
-                                                                TelescopeStatus.Ready))
-                                self._status = TelescopeStatus.Ready
-                            else:
-                                print('Status: {} -> {}'.format(self._status,
-                                                                TelescopeStatus.NotHomed))
-                                self._status = TelescopeStatus.NotHomed
 
             time.sleep(TELSTAT_QUERY_DELAY)
 
@@ -426,8 +438,8 @@ class TelescopeDaemon:
     def initialize(self):
         """Turns on the power and starts the lower level hardware daemons"""
         # TODO: Implement this properly
-        subprocess.call('/usr/local/bin/pdu_power_on')
-        subprocess.call('/usr/local/bin/pdu_telescope_80v_power_on')
+        # subprocess.call('/usr/local/bin/pdu_power_on')
+        # subprocess.call('/usr/local/bin/pdu_telescope_80v_power_on')
 
         # systemd starts teld with a clean environment
         # load the talon-specific environment just for talon
