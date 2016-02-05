@@ -870,6 +870,11 @@ class TelescopeDaemon:
             # TODO: Implement secondary focus command
             return CommandStatus.Failed
 
+    @Pyro4.expose
+    def ping(self):
+        """Returns immediately with a success status"""
+        return CommandStatus.Succeeded
+
 def environment_from_source(source_path):
     """Returns a dictionary of environment variables obtained after sourcing a file
        into a clean environment"""
