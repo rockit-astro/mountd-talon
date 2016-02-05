@@ -34,7 +34,7 @@ import time
 import ephem
 import Pyro4
 
-PYRO_HOST = 'localhost'
+PYRO_HOST = '192.168.0.101'
 PYRO_PORT = 9003
 
 # TODO: Reference installed copy

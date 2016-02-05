@@ -25,7 +25,11 @@ import sys
 import time
 import Pyro4
 
-DAEMON_URI = 'PYRO:telescope_daemon@localhost:9003'
+PYRO_HOST = '192.168.0.101'
+PYRO_PORT = 9003
+PYRO_NAME = 'telescope_daemon'
+
+PYRO_URI = 'PYRO:' + PYRO_NAME + '@' + PYRO_HOST + ':' + str(PYRO_PORT)
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 # Positions in degrees (alt, az)
@@ -132,10 +136,10 @@ def operate_cover(args):
     """Opens or closes the mirror covers"""
     if len(args) == 1:
         if args[0] == 'open':
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.open_covers()
         elif args[0] == 'close':
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.close_covers()
 
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
@@ -149,7 +153,7 @@ def park(args):
             return -1
 
         alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
-        with Pyro4.Proxy(DAEMON_URI) as teld:
+        with Pyro4.Proxy(PYRO_URI) as teld:
             return teld.slew_altaz(alt_radians, az_radians)
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
@@ -179,7 +183,7 @@ def slew(args):
 
     # TODO: Check against limits
 
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.slew_radec(ra_radians, dec_radians)
 
 def track(args):
@@ -202,7 +206,7 @@ def track(args):
 
     # TODO: check against limits
 
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.track_radec(ra_radians, dec_radians)
 
 def offset(args):
@@ -223,7 +227,7 @@ def offset(args):
         print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
         return -1
 
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.offset_radec(offset_ra_radians, offset_dec_radians)
 
 def focus(args):
@@ -236,7 +240,7 @@ def focus(args):
                 print('error: failed to parse \'' + args[1] + '\' as a focus position.')
                 return -1
 
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.telescope_focus(position)
 
         if args[0] == 'instrument':
@@ -250,10 +254,10 @@ def calibrate(args):
     """Performs the home and limit calibrations"""
     if len(args) == 1:
         if args[0] == 'home':
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.find_homes()
         elif args[0] == 'limits':
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.find_limits()
 
     print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
@@ -267,16 +271,16 @@ def guide(args):
                 print('usage: {} guide start <reference frame> <x binning> <y binning> ' \
                     '<background tile size>'.format(SCRIPT_NAME))
                 return -1
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.start_guiding(args[1], int(args[2]), int(args[3]), int(args[4]))
         elif args[0] == 'update':
             if len(args) < 2:
                 print('usage: {} guide update <new frame>'.format(SCRIPT_NAME))
                 return -1
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.update_guiding(args[1])
         elif args[0] == 'stop':
-            with Pyro4.Proxy(DAEMON_URI) as teld:
+            with Pyro4.Proxy(PYRO_URI) as teld:
                 return teld.stop_guiding()
 
     print('usage: {} guide [start|update|stop]'.format(SCRIPT_NAME))
@@ -284,7 +288,7 @@ def guide(args):
 
 def status():
     """Reports the current telescope status"""
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         data = teld.report_status()
 
         state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
@@ -337,17 +341,17 @@ def status():
 
 def stop():
     """Stops any active telescope movement"""
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.stop()
 
 def initialize():
     """Enables the power and talon daemons"""
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.initialize()
 
 def shutdown():
     """Disables the talon daemons and power"""
-    with Pyro4.Proxy(DAEMON_URI) as teld:
+    with Pyro4.Proxy(PYRO_URI) as teld:
         return teld.shutdown()
 
 def reboot():
@@ -385,6 +389,7 @@ def print_usage():
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         sys.exit(print_usage())
+
     if sys.argv[1] == 'covers':
         run_command(lambda: operate_cover(sys.argv[2:]))
     if sys.argv[1] == 'park':

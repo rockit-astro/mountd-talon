@@ -1,4 +1,7 @@
-# teld
+Part of the observatory software for the Warwick one-meter telescope.
 
-Daemon and CLI tool for controlling the Warwick one-metre telescope.
-Interfaces with the lower level Talon daemons, and reads status using the custom `telstat` utility included with the one-metre talon package.
+teld interfaces with and wraps the low-level talon daemons and exposes a
+coherant telescope control interface via Pyro.
+
+tel is a commandline utility for controlling the telescope.
+
