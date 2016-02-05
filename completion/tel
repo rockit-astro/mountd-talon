@@ -1,0 +1,33 @@
+_tel()
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="status covers park slew track offset focus stop guide cal init kill reboot"
+
+    case "${prev}" in
+        guide)
+            opts="start update stop"
+            ;;
+        covers)
+            opts="open close"
+            ;;
+        focus)
+            opts="telescope instrument"
+            ;;
+        cal)
+            opts="home limits"
+            ;;
+        guide)
+            opts="start update stop"
+            ;;
+       *)
+            ;;
+    esac
+
+    COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+    return 0
+}
+
+complete -F _tel tel
