@@ -83,6 +83,9 @@ LIMIT_TIMEOUT = 120
 SLEW_TIMEOUT = 120
 FOCUS_TIMEOUT = 60
 
+# Time for talon and the telescope hardware to boot to a usable state
+INITIALIZATION_TIMEOUT = 60
+
 # arcsec -> radians per pixel for an unbinned image
 TELESCOPE_PIXEL_SCALE = 0.391 * math.pi / 648000
 
@@ -103,6 +106,7 @@ class CommandStatus:
     TelescopeNotReady = 11
     TelescopeNotTracking = 12
     TelescopeNotGuiding = 13
+    TelescopeNotUninitialized = 14
 
     OutsideHALimits = 20
     OutsideDecLimits = 21
@@ -156,8 +160,10 @@ class TelescopeDaemon:
         self._pointing_condition = threading.Condition()
         self._cover_condition = threading.Condition()
         self._telescope_focus_condition = threading.Condition()
+        self._status_condition = threading.Condition()
         self._force_stopped = False
 
+        self._last_status = TelescopeStatus.Disabled
         self._status = TelescopeStatus.Disabled
 
         # Status data from shared memory
@@ -292,23 +298,30 @@ class TelescopeDaemon:
             with self._cover_condition:
                 with self._pointing_condition:
                     with self._telescope_focus_condition:
-                        # Update state from shared memory
-                        self.__update_state_from_talon_shm()
+                        with self._status_condition:
+                            # Update state from shared memory
+                            self.__update_state_from_talon_shm()
 
-                        if self._last_pointing_state != self._pointing_state:
-                            print(TelState.Names[self._last_pointing_state] + ' -> ' + \
-                                  TelState.Names[self._pointing_state])
-                            self._pointing_condition.notify()
+                            if self._last_pointing_state != self._pointing_state:
+                                print(TelState.Names[self._last_pointing_state] + ' -> ' + \
+                                      TelState.Names[self._pointing_state])
+                                self._pointing_condition.notify()
 
-                        if self._last_cover_state != self._cover_state:
-                            print(CoverState.Names[self._last_cover_state] + ' -> ' + \
-                                  CoverState.Names[self._cover_state])
-                            self._cover_condition.notify()
+                            if self._last_cover_state != self._cover_state:
+                                print(CoverState.Names[self._last_cover_state] + ' -> ' + \
+                                      CoverState.Names[self._cover_state])
+                                self._cover_condition.notify()
 
-                        if self._last_telescope_focus_um != self._telescope_focus_um:
-                            print('tel focus: {:2f} -> {:2f}'.format(self._last_telescope_focus_um,
-                                                                     self._telescope_focus_um))
-                            self._telescope_focus_condition.notify()
+                            if self._last_telescope_focus_um != self._telescope_focus_um:
+                                print('tel focus: {:2f} -> {:2f}'.format(self._last_telescope_focus_um,
+                                                                         self._telescope_focus_um))
+                                self._telescope_focus_condition.notify()
+
+                            if self._last_status != self._status:
+                                print('Status {} -> {}'.format(self._last_status, self._status))
+                                self._status_condition.notify()
+
+                            self._last_status = self._status
 
             time.sleep(TELSTAT_QUERY_DELAY)
 
@@ -437,26 +450,47 @@ class TelescopeDaemon:
     @Pyro4.expose
     def initialize(self):
         """Turns on the power and starts the lower level hardware daemons"""
-        # TODO: Implement this properly
-        # subprocess.call('/usr/local/bin/pdu_power_on')
-        # subprocess.call('/usr/local/bin/pdu_telescope_80v_power_on')
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
 
-        # systemd starts teld with a clean environment
-        # load the talon-specific environment just for talon
-        talon_env = environment_from_source('/etc/profile.d/talon.sh')
-        with open(os.devnull, 'w') as devnull:
-            subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'], env=talon_env,
-                            stdout=devnull, stderr=devnull)
+            if self._status != TelescopeStatus.Disabled:
+                return CommandStatus.TelescopeNotUninitialized
 
-        return CommandStatus.Succeeded
+            # TODO: Implement this properly
+            subprocess.call('/usr/local/bin/pdu_telescope_12v_power_on')
+
+            # systemd starts teld with a clean environment
+            # load the talon-specific environment just for talon
+            talon_env = environment_from_source('/etc/profile.d/talon.sh')
+            with open(os.devnull, 'w') as devnull:
+                subprocess.call(['/usr/local/telescope/bin/rund', 'telescoped'], env=talon_env,
+                                stdout=devnull, stderr=devnull)
+
+            with self._status_condition:
+                self._status_condition.wait(INITIALIZATION_TIMEOUT)
+
+            if self._status == TelescopeStatus.Disabled:
+                # Clean up after failed initialization
+                # TODO: Implement this properly
+                subprocess.call('/usr/local/bin/pdu_telescope_12v_power_off')
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def shutdown(self):
         """Disables and powers off the telescope"""
-        # TODO: Implement this properly
-        subprocess.call(['/usr/local/telescope/bin/killTel', '-all'])
-        subprocess.call('/usr/local/bin/pdu_power_off')
-        return CommandStatus.Succeeded
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status == TelescopeStatus.Disabled:
+                return CommandStatus.TelescopeNotInitialized
+
+            # TODO: Implement this properly
+            subprocess.call('/usr/local/bin/pdu_telescope_12v_power_off')
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def find_homes(self):
