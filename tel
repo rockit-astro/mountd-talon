@@ -33,7 +33,13 @@ TEL_NAME = 'telescope_daemon'
 # The real commands may take much longer than this, so we can't apply the timeout there.
 TEL_PING_TIMEOUT = 5
 
+POWER_HOST = '192.168.0.102'
+POWER_PORT = 9009
+POWER_NAME = 'power_daemon'
+POWER_TIMEOUT = 5
+
 TEL_URI = 'PYRO:' + TEL_NAME + '@' + TEL_HOST + ':' + str(TEL_PORT)
+POWER_URI = 'PYRO:' + POWER_NAME + '@' + POWER_HOST + ':' + str(POWER_PORT)
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 # Positions in degrees (alt, az)
@@ -59,7 +65,11 @@ STATUS_CODES = {
 
     # tel specific codes
     -100: 'error: terminated by user',
-    -101: 'error: unable to communicate with telescope daemon'
+    -101: 'error: unable to communicate with telescope daemon',
+    -102: 'error: unable to communicate with power system daemon',
+
+    -110: 'error: telescope drive power is disabled',
+    -111: 'error: telescope cover power is disabled'
 }
 
 TELESCOPE_STATE_DESCRIPTIONS = {
@@ -139,14 +149,16 @@ def parse_dec(dec_string):
 
 def operate_cover(args):
     """Opens or closes the mirror covers"""
-    if len(args) == 1:
-        if args[0] == 'open':
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
+    if len(args) == 1 and (args[0] == 'open' or args[0] == 'close'):
+        cover_status = cover_power_status()
+        if cover_status != 0:
+            return cover_status
+
+        ping_teld()
+        with Pyro4.Proxy(TEL_URI) as teld:
+            if args[0] == 'open':
                 return teld.open_covers()
-        elif args[0] == 'close':
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
+            else:
                 return teld.close_covers()
 
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
@@ -158,6 +170,10 @@ def park(args):
         if args[0] not in PARK_POSITIONS:
             print('error: unknown park position \'' + args[0] + '\'')
             return -1
+
+        drive_status = drive_power_status()
+        if drive_status != 0:
+            return drive_status
 
         alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
         ping_teld()
@@ -191,6 +207,10 @@ def slew(args):
 
     # TODO: Check against limits
 
+    drive_status = drive_power_status()
+    if drive_status != 0:
+        return drive_status
+
     ping_teld()
     with Pyro4.Proxy(TEL_URI) as teld:
         return teld.slew_radec(ra_radians, dec_radians)
@@ -215,6 +235,10 @@ def track(args):
 
     # TODO: check against limits
 
+    drive_status = drive_power_status()
+    if drive_status != 0:
+        return drive_status
+
     ping_teld()
     with Pyro4.Proxy(TEL_URI) as teld:
         return teld.track_radec(ra_radians, dec_radians)
@@ -236,6 +260,10 @@ def offset(args):
     except ValueError:
         print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
         return -1
+
+    drive_status = drive_power_status()
+    if drive_status != 0:
+        return drive_status
 
     ping_teld()
     with Pyro4.Proxy(TEL_URI) as teld:
@@ -264,14 +292,16 @@ def focus(args):
 
 def calibrate(args):
     """Performs the home and limit calibrations"""
-    if len(args) == 1:
-        if args[0] == 'home':
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
+    if len(args) == 1 and (args[0] == 'home' or args[0] == 'limits'):
+        drive_status = drive_power_status()
+        if drive_status != 0:
+            return drive_status
+
+        ping_teld()
+        with Pyro4.Proxy(TEL_URI) as teld:
+            if args[0] == 'home':
                 return teld.find_homes()
-        elif args[0] == 'limits':
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
+            else:
                 return teld.find_limits()
 
     print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
@@ -388,6 +418,27 @@ def ping_teld():
         teld.ping()
 
     Pyro4.config.COMMTIMEOUT = timeout
+
+def cover_power_status():
+    """Returns 0 if cover power is enabled or an error code"""
+    return query_power_daemon('telescope_covers', -111)
+
+def drive_power_status():
+    """Returns 0 if drive power is enabled or an error code"""
+    return query_power_daemon('telescope_80v', -110)
+
+def query_power_daemon(switch_name, disabled_code):
+    """Checks specified PDU switch and returns an error code if disabled"""
+    timeout = Pyro4.config.COMMTIMEOUT
+    Pyro4.config.COMMTIMEOUT = POWER_TIMEOUT
+    try:
+        with Pyro4.Proxy(POWER_URI) as powerd:
+            powered = powerd.value(switch_name)
+            return 0 if powered else disabled_code
+    except Pyro4.errors.CommunicationError:
+        return -102
+    finally:
+        Pyro4.config.COMMTIMEOUT = timeout
 
 def print_usage():
     """Prints the utility help"""
