@@ -164,6 +164,24 @@ def operate_cover(args):
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
     return -1
 
+def drive_power(args):
+    """Enable or disable the telescope drive power"""
+    if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
+        timeout = Pyro4.config.COMMTIMEOUT
+        Pyro4.config.COMMTIMEOUT = POWER_TIMEOUT
+        try:
+            enable = args[0] == 'enable'
+            with Pyro4.Proxy(POWER_URI) as powerd:
+                success = powerd.switch('telescope_80v', enable)
+                return 0 if success else 1
+        except Pyro4.errors.CommunicationError:
+            return -102
+        finally:
+            Pyro4.config.COMMTIMEOUT = timeout
+
+    print('usage: {} drive [enable|disable]'.format(SCRIPT_NAME))
+    return -1
+
 def park(args):
     """Slews the telescope to a named park position"""
     if len(args) == 1:
@@ -454,6 +472,7 @@ def print_usage():
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
     print('   covers    open or close the mirror covers')
+    print('   drive     enable or disable the telescope drive power')
     print('   park      park the telescope in a named position')
     print()
     print('observing commands:')
@@ -479,6 +498,8 @@ if __name__ == '__main__':
 
     if sys.argv[1] == 'covers':
         run_command(lambda: operate_cover(sys.argv[2:]))
+    if sys.argv[1] == 'drive':
+        run_command(lambda: drive_power(sys.argv[2:]))
     if sys.argv[1] == 'park':
         run_command(lambda: park(sys.argv[2:]))
     if sys.argv[1] == 'slew':

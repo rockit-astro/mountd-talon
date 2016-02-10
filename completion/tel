@@ -4,7 +4,7 @@ _tel()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="status covers park slew track offset focus stop guide cal init kill reboot"
+    opts="status covers drive park slew track offset focus stop guide cal init kill reboot"
 
     case "${prev}" in
         guide)
@@ -12,6 +12,9 @@ _tel()
             ;;
         covers)
             opts="open close"
+            ;;
+        drive)
+            opts="enable disable"
             ;;
         focus)
             opts="telescope instrument"
