@@ -339,53 +339,60 @@ def status():
     with Pyro4.Proxy(TEL_URI) as teld:
         data = teld.report_status()
 
-        state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
-        if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
-            state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
+    drive_status = drive_power_status()
+    drive_desc = '\033[1m\033[92mENABLED\033[0m'
+    if drive_status == -110:
+        drive_desc = '\033[1m\033[91mDISABLED\033[0m'
+    elif drive_status == -102:
+        drive_desc = '\033[1m\033[93mUNKNOWN\033[0m'
 
-        cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
-        if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
-            cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
+    state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+    if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
+        state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
 
-        ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
-        dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
+    cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+    if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
+        cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
 
-        alt_desc = sexagesimal(float(data['alt']) * 180 / math.pi)
-        az_desc = sexagesimal(float(data['az']) * 180 / math.pi)
-        lst_desc = sexagesimal(float(data['lst']) * 12 / math.pi)
+    ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
+    dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
 
-        ra_offset_desc = ''
-        ra_offset = float(data['offset_ra'])
-        if ra_offset != 0:
-            ra_offset_coords = sexagesimal(ra_offset * 12 / math.pi)
-            ra_offset_desc = ' with offset \033[1m' + ra_offset_coords + '\033[0m'
+    alt_desc = sexagesimal(float(data['alt']) * 180 / math.pi)
+    az_desc = sexagesimal(float(data['az']) * 180 / math.pi)
+    lst_desc = sexagesimal(float(data['lst']) * 12 / math.pi)
 
-        dec_offset_desc = ''
-        dec_offset = float(data['offset_dec'])
-        if dec_offset != 0:
-            dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
-            dec_offset_desc = ' with offset \033[1m' + dec_offset_coords + '\033[0m'
+    ra_offset_desc = ''
+    ra_offset = float(data['offset_ra'])
+    if ra_offset != 0:
+        ra_offset_coords = sexagesimal(ra_offset * 12 / math.pi)
+        ra_offset_desc = ' with offset \033[1m' + ra_offset_coords + '\033[0m'
 
-        print('   Telescope is {} (Talon state {}).'.format(state_desc, data['pointing_state']))
-        print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
-        print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
-        print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
-        print('   Altitude is \033[1m' + alt_desc + '\033[0m')
-        print('   Azimuth is \033[1m' + az_desc + '\033[0m')
-        print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
-        print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
+    dec_offset_desc = ''
+    dec_offset = float(data['offset_dec'])
+    if dec_offset != 0:
+        dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
+        dec_offset_desc = ' with offset \033[1m' + dec_offset_coords + '\033[0m'
 
-        if data['guide_reference_frame'] != None:
-            print('   Guiding on frame \033[1m{}\033[0m'.format(
-                data['guide_reference_frame']))
-            print('   Using \033[1m{}\033[0m x \033[1m{}\033[0m binning and ' \
-                '\033[1m{}\033[0m px background tiles'.format(
-                    data['guide_x_binning'], data['guide_y_binning'],
-                    data['guide_background_tile_size']))
-            print('   Current guide offset is \033[1m{}\033[0m, \033[1m{}\033[0m'.format(
-                sexagesimal(float(data['guide_offset_ra']) / 15),
-                sexagesimal(float(data['guide_offset_dec']))))
-        return 0
+    print('   Telescope is {} (Talon state {}).'.format(state_desc, data['pointing_state']))
+    print('   Telescope drive power {}'.format(drive_desc))
+    print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
+    print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
+    print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
+    print('   Altitude is \033[1m' + alt_desc + '\033[0m')
+    print('   Azimuth is \033[1m' + az_desc + '\033[0m')
+    print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
+    print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
+
+    if data['guide_reference_frame'] != None:
+        print('   Guiding on frame \033[1m{}\033[0m'.format(data['guide_reference_frame']))
+        print('   Using \033[1m{}\033[0m x \033[1m{}\033[0m binning and ' \
+            '\033[1m{}\033[0m px background tiles'.format(
+                data['guide_x_binning'], data['guide_y_binning'],
+                data['guide_background_tile_size']))
+        print('   Current guide offset is \033[1m{}\033[0m, \033[1m{}\033[0m'.format(
+            sexagesimal(float(data['guide_offset_ra']) / 15),
+            sexagesimal(float(data['guide_offset_dec']))))
+    return 0
 
 def stop():
     """Stops any active telescope movement"""
