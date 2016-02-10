@@ -25,15 +25,15 @@ import sys
 import time
 import Pyro4
 
-PYRO_HOST = '192.168.0.101'
-PYRO_PORT = 9003
-PYRO_NAME = 'telescope_daemon'
+TEL_HOST = '192.168.0.101'
+TEL_PORT = 9003
+TEL_NAME = 'telescope_daemon'
 
 # This timeout is used for an initial ping before running the real command
 # The real commands may take much longer than this, so we can't apply the timeout there.
-PYRO_PING_TIMEOUT = 5
+TEL_PING_TIMEOUT = 5
 
-PYRO_URI = 'PYRO:' + PYRO_NAME + '@' + PYRO_HOST + ':' + str(PYRO_PORT)
+TEL_URI = 'PYRO:' + TEL_NAME + '@' + TEL_HOST + ':' + str(TEL_PORT)
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 # Positions in degrees (alt, az)
@@ -142,11 +142,11 @@ def operate_cover(args):
     if len(args) == 1:
         if args[0] == 'open':
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.open_covers()
         elif args[0] == 'close':
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.close_covers()
 
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
@@ -161,7 +161,7 @@ def park(args):
 
         alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
         ping_teld()
-        with Pyro4.Proxy(PYRO_URI) as teld:
+        with Pyro4.Proxy(TEL_URI) as teld:
             return teld.slew_altaz(alt_radians, az_radians)
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
@@ -192,7 +192,7 @@ def slew(args):
     # TODO: Check against limits
 
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.slew_radec(ra_radians, dec_radians)
 
 def track(args):
@@ -216,7 +216,7 @@ def track(args):
     # TODO: check against limits
 
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.track_radec(ra_radians, dec_radians)
 
 def offset(args):
@@ -238,7 +238,7 @@ def offset(args):
         return -1
 
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.offset_radec(offset_ra_radians, offset_dec_radians)
 
 def focus(args):
@@ -252,7 +252,7 @@ def focus(args):
                 return -1
 
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.telescope_focus(position)
 
         if args[0] == 'instrument':
@@ -267,11 +267,11 @@ def calibrate(args):
     if len(args) == 1:
         if args[0] == 'home':
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.find_homes()
         elif args[0] == 'limits':
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.find_limits()
 
     print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
@@ -286,18 +286,18 @@ def guide(args):
                     '<background tile size>'.format(SCRIPT_NAME))
                 return -1
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.start_guiding(args[1], int(args[2]), int(args[3]), int(args[4]))
         elif args[0] == 'update':
             if len(args) < 2:
                 print('usage: {} guide update <new frame>'.format(SCRIPT_NAME))
                 return -1
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.update_guiding(args[1])
         elif args[0] == 'stop':
             ping_teld()
-            with Pyro4.Proxy(PYRO_URI) as teld:
+            with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.stop_guiding()
 
     print('usage: {} guide [start|update|stop]'.format(SCRIPT_NAME))
@@ -306,7 +306,7 @@ def guide(args):
 def status():
     """Reports the current telescope status"""
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         data = teld.report_status()
 
         state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
@@ -360,19 +360,19 @@ def status():
 def stop():
     """Stops any active telescope movement"""
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.stop()
 
 def initialize():
     """Enables the power and talon daemons"""
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.initialize()
 
 def shutdown():
     """Disables the talon daemons and power"""
     ping_teld()
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    with Pyro4.Proxy(TEL_URI) as teld:
         return teld.shutdown()
 
 def reboot():
@@ -383,8 +383,8 @@ def reboot():
 
 def ping_teld():
     timeout = Pyro4.config.COMMTIMEOUT
-    Pyro4.config.COMMTIMEOUT = PYRO_PING_TIMEOUT
-    with Pyro4.Proxy(PYRO_URI) as teld:
+    Pyro4.config.COMMTIMEOUT = TEL_PING_TIMEOUT
+    with Pyro4.Proxy(TEL_URI) as teld:
         teld.ping()
 
     Pyro4.config.COMMTIMEOUT = timeout
