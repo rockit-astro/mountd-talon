@@ -53,6 +53,7 @@ STATUS_CODES = {
     # General error codes
     1: 'error: command failed',
     2: 'error: another command is already running',
+    5: 'error: telescope failed to communicate with power system daemon',
 
     # Command-specific codes
     10: 'error: telescope has not been initialized',

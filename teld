@@ -34,8 +34,17 @@ import time
 import ephem
 import Pyro4
 
-PYRO_HOST = '192.168.0.101'
-PYRO_PORT = 9003
+PYRO_COMM_TIMEOUT = 5
+
+TELD_HOST = '192.168.0.101'
+TELD_PORT = 9003
+TELD_NAME = 'telescope_daemon'
+
+POWERD_HOST = '192.168.0.102'
+POWERD_PORT = 9009
+POWERD_NAME = 'power_daemon'
+
+POWERD_URI = 'PYRO:' + POWERD_NAME + '@' + POWERD_HOST + ':' + str(POWERD_PORT)
 
 # TODO: Reference installed copy
 PIXELSHIFT_PATH = '/home/saft/src/pixelshift/pixelshift'
@@ -100,6 +109,8 @@ class CommandStatus:
     Succeeded = 0
     Failed = 1
     Blocked = 2
+
+    CannotCommunicateWithPowerDaemon = 5
 
     # Command-specific codes
     TelescopeNotInitialized = 10
@@ -457,8 +468,13 @@ class TelescopeDaemon:
             if self._status != TelescopeStatus.Disabled:
                 return CommandStatus.TelescopeNotUninitialized
 
-            # TODO: Implement this properly
-            subprocess.call('/usr/local/bin/pdu_telescope_12v_power_on')
+            # Turn on CSIMC controller card power
+            try:
+                with Pyro4.Proxy(POWERD_URI) as power:
+                    if not power.switch('telescope_12v', True):
+                        return CommandStatus.CannotCommunicateWithPowerDaemon
+            except Pyro4.errors.CommunicationError:
+                return CommandStatus.CannotCommunicateWithPowerDaemon
 
             # systemd starts teld with a clean environment
             # load the talon-specific environment just for talon
@@ -472,8 +488,13 @@ class TelescopeDaemon:
 
             if self._status == TelescopeStatus.Disabled:
                 # Clean up after failed initialization
-                # TODO: Implement this properly
-                subprocess.call('/usr/local/bin/pdu_telescope_12v_power_off')
+                try:
+                    with Pyro4.Proxy(POWERD_URI) as power:
+                        if not power.switch('telescope_12v', False):
+                            return CommandStatus.CannotCommunicateWithPowerDaemon
+                except Pyro4.errors.CommunicationError:
+                    return CommandStatus.CannotCommunicateWithPowerDaemon
+
                 return CommandStatus.Failed
 
             return CommandStatus.Succeeded
@@ -488,8 +509,16 @@ class TelescopeDaemon:
             if self._status == TelescopeStatus.Disabled:
                 return CommandStatus.TelescopeNotInitialized
 
-            # TODO: Implement this properly
-            subprocess.call('/usr/local/bin/pdu_telescope_12v_power_off')
+            # Turn off CSIMC controller card power
+            # The main daemon thread will detect the cards going away
+            # and clean up as required.
+            try:
+                with Pyro4.Proxy(POWERD_URI) as power:
+                    if not power.switch('telescope_12v', False):
+                        return CommandStatus.CannotCommunicateWithPowerDaemon
+            except Pyro4.errors.CommunicationError:
+                return CommandStatus.CannotCommunicateWithPowerDaemon
+
             return CommandStatus.Succeeded
 
     @Pyro4.expose
@@ -950,12 +979,12 @@ def shm_read_ushort(shm, offset):
 
 def spawn_daemon():
     """Spawns the daemon and registers it with Pyro"""
-    Pyro4.config.COMMTIMEOUT = 5
+    Pyro4.config.COMMTIMEOUT = PYRO_COMM_TIMEOUT
     Pyro4.config.REQUIRE_EXPOSE = True
 
-    pyro = Pyro4.Daemon(host=PYRO_HOST, port=PYRO_PORT)
+    pyro = Pyro4.Daemon(host=TELD_HOST, port=TELD_PORT)
     telescope = TelescopeDaemon()
-    uri = pyro.register(telescope, objectId='telescope_daemon')
+    uri = pyro.register(telescope, objectId=TELD_NAME)
 
     print('Starting telescope daemon with Pyro ID:', uri)
     pyro.requestLoop()
