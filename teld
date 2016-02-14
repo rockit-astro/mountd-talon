@@ -446,7 +446,10 @@ class TelescopeDaemon:
                 'lst': self.__local_sidereal_time(),
 
                 'telescope_focus_um': self._telescope_focus_um,
+            })
 
+        if self._status == TelescopeStatus.Guiding:
+            data.update({
                 'guide_reference_frame': self._guide_reference_frame,
                 'guide_background_tile_size': self._guide_background_tile_size,
                 'guide_x_binning': self._guide_x_binning,

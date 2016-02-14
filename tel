@@ -408,7 +408,7 @@ def status():
     print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
     print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
 
-    if data['guide_reference_frame'] != None:
+    if data['state'] == 4:
         print('   Guiding on frame \033[1m{}\033[0m'.format(data['guide_reference_frame']))
         print('   Using \033[1m{}\033[0m x \033[1m{}\033[0m binning and ' \
             '\033[1m{}\033[0m px background tiles'.format(
