@@ -74,11 +74,11 @@ STATUS_CODES = {
 }
 
 TELESCOPE_STATE_DESCRIPTIONS = {
-    0: u'\033[1m\033[91mOFFLINE\033[0m',
-    1: u'\033[1m\033[91mONLINE BUT NOT HOMED\033[0m',
-    2: u'\033[1mREADY TO OBSERVE\033[0m',
-    3: u'\033[1m\033[92mTRACKING TARGET\033[0m',
-    4: u'\033[1m\033[92mGUIDING ON TARGET\033[0m'
+    0: '\033[1m\033[91mOFFLINE\033[0m',
+    1: '\033[1m\033[91mONLINE BUT NOT HOMED\033[0m',
+    2: '\033[1mREADY TO OBSERVE\033[0m',
+    3: '\033[1m\033[92mTRACKING TARGET\033[0m',
+    4: '\033[1m\033[92mGUIDING ON TARGET\033[0m'
 }
 
 TELESCOPE_COVER_DESCRIPTIONS = {
@@ -365,7 +365,7 @@ def status():
     elif drive_status == -102:
         drive_desc = '\033[1m\033[93mUNKNOWN\033[0m'
 
-    state_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+    state_desc = '\033[1m\033[93mUNKNOWN\033[0m'
     if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
         state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
 
@@ -375,7 +375,7 @@ def status():
         print('   Telescope drive power {}'.format(drive_desc))
         return 0
 
-    cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
+    cover_desc = '\033[1m\033[93mUNKNOWN\033[0m'
     if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
         cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
 
