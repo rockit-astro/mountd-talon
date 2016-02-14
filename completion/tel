@@ -25,7 +25,12 @@ _tel()
         guide)
             opts="start update stop"
             ;;
-       *)
+        start)
+            local IFS=$'\n'
+            COMPREPLY=($(compgen -o plusdirs -f -X '!*.fits' -- $cur))
+            return 0
+            ;;
+        *)
             ;;
     esac
 
@@ -33,4 +38,4 @@ _tel()
     return 0
 }
 
-complete -F _tel tel
+complete -o filenames -F _tel tel
