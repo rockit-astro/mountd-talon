@@ -429,32 +429,32 @@ class TelescopeDaemon:
     @Pyro4.expose
     def report_status(self):
         """Returns a dictionary containing the current telescope state"""
-        alt, az = self.__alt_az_from_ra_dec(self._current_ra, self._current_dec)
+        data = {'state': self._status}
+        if self._status != TelescopeStatus.Disabled:
+            alt, az = self.__alt_az_from_ra_dec(self._current_ra, self._current_dec)
+            data.update({
+                'pointing_state': TelState.Names[self._pointing_state],
+                'cover_state': CoverState.Names[self._cover_state],
 
-        data = {
-            'state': self._status,
-            'pointing_state': TelState.Names[self._pointing_state],
-            'cover_state': CoverState.Names[self._cover_state],
+                'ra': self._current_ra,
+                'dec': self._current_dec,
+                'offset_ra': self._offset_ra,
+                'offset_dec': self._offset_dec,
 
-            'ra': self._current_ra,
-            'dec': self._current_dec,
-            'offset_ra': self._offset_ra,
-            'offset_dec': self._offset_dec,
+                'alt': alt,
+                'az': az,
+                'lst': self.__local_sidereal_time(),
 
-            'alt': alt,
-            'az': az,
-            'lst': self.__local_sidereal_time(),
+                'telescope_focus_um': self._telescope_focus_um,
 
-            'telescope_focus_um': self._telescope_focus_um,
+                'guide_reference_frame': self._guide_reference_frame,
+                'guide_background_tile_size': self._guide_background_tile_size,
+                'guide_x_binning': self._guide_x_binning,
+                'guide_y_binning': self._guide_y_binning,
 
-            'guide_reference_frame': self._guide_reference_frame,
-            'guide_background_tile_size': self._guide_background_tile_size,
-            'guide_x_binning': self._guide_x_binning,
-            'guide_y_binning': self._guide_y_binning,
-
-            'guide_offset_ra': self._guide_offset_ra,
-            'guide_offset_dec': self._guide_offset_dec,
-        }
+                'guide_offset_ra': self._guide_offset_ra,
+                'guide_offset_dec': self._guide_offset_dec,
+            })
 
         return data
 

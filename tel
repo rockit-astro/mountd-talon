@@ -369,6 +369,12 @@ def status():
     if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
         state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
 
+    # Telescope is disabled
+    if data['state'] == 0:
+        print('   Telescope is {}'.format(state_desc))
+        print('   Telescope drive power {}'.format(drive_desc))
+        return 0
+
     cover_desc = u'\033[1m\033[93mUNKNOWN\033[0m'
     if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
         cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
@@ -392,7 +398,7 @@ def status():
         dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
         dec_offset_desc = ' with offset \033[1m' + dec_offset_coords + '\033[0m'
 
-    print('   Telescope is {} (Talon state {}).'.format(state_desc, data['pointing_state']))
+    print('   Telescope is {} (Talon state {})'.format(state_desc, data['pointing_state']))
     print('   Telescope drive power {}'.format(drive_desc))
     print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
     print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
