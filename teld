@@ -212,25 +212,6 @@ class TelescopeDaemon:
             if self._talon_shm is None:
                 self._talon_shm = sysv_ipc.SharedMemory(TALON_SHM_KEY)
 
-                obs = ephem.Observer()
-                # pylint: disable=assigning-non-slot
-                obs.lon = shm_read_double(self._talon_shm, SHM_LONGITUDE_OFFSET)
-                obs.lat = shm_read_double(self._talon_shm, SHM_LATITUDE_OFFSET)
-                obs.elevation = shm_read_double(self._talon_shm, SHM_ELEVATION_OFFSET) * 6.37816e6
-                obs.pressure = 0
-                obs.epoch = ephem.J2000
-                # pylint: enable=assigning-non-slot
-                self._observatory = obs
-
-                self._ha_positive_limit = shm_read_double(self._talon_shm,
-                                                          SHM_RA_AXIS + SHM_AXIS_POSLIM)
-                self._ha_negative_limit = shm_read_double(self._talon_shm,
-                                                          SHM_RA_AXIS + SHM_AXIS_NEGLIM)
-                self._dec_positive_limit = shm_read_double(self._talon_shm,
-                                                           SHM_DEC_AXIS + SHM_AXIS_POSLIM)
-                self._dec_negative_limit = shm_read_double(self._talon_shm,
-                                                           SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
-
             with self._talon_shm_lock:
                 self._last_talon_mjd = self._talon_mjd
                 self._talon_mjd = shm_read_double(self._talon_shm, SHM_MJD_OFFSET)
@@ -294,6 +275,27 @@ class TelescopeDaemon:
                 ra_flags = shm_read_ushort(self._talon_shm, SHM_RA_AXIS + SHM_AXIS_FLAGS)
                 dec_flags = shm_read_ushort(self._talon_shm, SHM_DEC_AXIS + SHM_AXIS_FLAGS)
 #               focus_flags = shm_read_ushort(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+
+                # Update observatory state
+                obs = ephem.Observer()
+                # pylint: disable=assigning-non-slot
+                obs.lon = shm_read_double(self._talon_shm, SHM_LONGITUDE_OFFSET)
+                obs.lat = shm_read_double(self._talon_shm, SHM_LATITUDE_OFFSET)
+                obs.elevation = shm_read_double(self._talon_shm, SHM_ELEVATION_OFFSET) * 6.37816e6
+                obs.pressure = 0
+                obs.epoch = ephem.J2000
+                # pylint: enable=assigning-non-slot
+                self._observatory = obs
+
+                # Update limits
+                self._ha_positive_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_POSLIM)
+                self._ha_negative_limit = shm_read_double(self._talon_shm,
+                                                          SHM_RA_AXIS + SHM_AXIS_NEGLIM)
+                self._dec_positive_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_POSLIM)
+                self._dec_negative_limit = shm_read_double(self._talon_shm,
+                                                           SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             # Check whether the axes are already homed
             # TODO: include focus homing
