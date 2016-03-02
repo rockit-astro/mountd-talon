@@ -18,6 +18,7 @@
 """Daemon process for managing the telescope"""
 
 # pylint: disable=invalid-name
+# pylint: disable=too-many-locals
 
 import math
 import os
@@ -444,6 +445,7 @@ def reboot():
     return initialize()
 
 def ping_teld():
+    """Check that teld is alive"""
     timeout = Pyro4.config.COMMTIMEOUT
     Pyro4.config.COMMTIMEOUT = TEL_PING_TIMEOUT
     with Pyro4.Proxy(TEL_URI) as teld:

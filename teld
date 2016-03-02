@@ -22,6 +22,10 @@
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=no-self-use
+# pylint: disable=too-many-statements
+# pylint: disable=bare-except
+# pylint: disable=too-many-lines
+# pylint: disable=broad-except
 
 import glob
 import math
@@ -247,7 +251,8 @@ class TelescopeDaemon:
 
         # Talon stops updating the shared memory if the hardware crashes
         # We use this as a proxy for checking that the daemons are operating correctly
-        talon_alive = talon_alive and self._talon_mjd > 0 and self._last_talon_mjd != self._talon_mjd
+        talon_alive = talon_alive and self._talon_mjd > 0 and \
+            self._last_talon_mjd != self._talon_mjd
 
         if not talon_alive and self._status != TelescopeStatus.Disabled:
             # Talon has just died on us!
@@ -326,8 +331,8 @@ class TelescopeDaemon:
                                 self._cover_condition.notify()
 
                             if self._last_telescope_focus_um != self._telescope_focus_um:
-                                print('tel focus: {:2f} -> {:2f}'.format(self._last_telescope_focus_um,
-                                                                         self._telescope_focus_um))
+                                print('tel focus: {:2f} -> {:2f}'.format(
+                                    self._last_telescope_focus_um, self._telescope_focus_um))
                                 self._telescope_focus_condition.notify()
 
                             if self._last_status != self._status:
