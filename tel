@@ -375,9 +375,9 @@ def status():
         print('   Telescope drive power {}'.format(drive_desc))
         return 0
 
-    cover_desc = '\033[1m\033[93mUNKNOWN\033[0m'
-    if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
-        cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
+    #cover_desc = '\033[1m\033[93mUNKNOWN\033[0m'
+    #if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
+    #    cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
 
     ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
     dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
@@ -400,7 +400,7 @@ def status():
 
     print('   Telescope is {} (Talon state {})'.format(state_desc, data['pointing_state']))
     print('   Telescope drive power {}'.format(drive_desc))
-    print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
+    #print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
     print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
     print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
     print('   Altitude is \033[1m' + alt_desc + '\033[0m')
@@ -478,7 +478,7 @@ def print_usage():
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
-    print('   covers    open or close the mirror covers')
+    #print('   covers    open or close the mirror covers')
     print('   drive     enable or disable the telescope drive power')
     print('   park      park the telescope in a named position')
     print()
@@ -503,8 +503,8 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         sys.exit(print_usage())
 
-    if sys.argv[1] == 'covers':
-        run_command(lambda: operate_cover(sys.argv[2:]))
+    #if sys.argv[1] == 'covers':
+    #    run_command(lambda: operate_cover(sys.argv[2:]))
     if sys.argv[1] == 'drive':
         run_command(lambda: drive_power(sys.argv[2:]))
     if sys.argv[1] == 'park':
