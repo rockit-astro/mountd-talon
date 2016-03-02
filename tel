@@ -415,9 +415,6 @@ def status():
             '\033[1m{}\033[0m px background tiles'.format(
                 data['guide_x_binning'], data['guide_y_binning'],
                 data['guide_background_tile_size']))
-        print('   Current guide offset is \033[1m{}\033[0m, \033[1m{}\033[0m'.format(
-            sexagesimal(float(data['guide_offset_ra']) / 15),
-            sexagesimal(float(data['guide_offset_dec']))))
     return 0
 
 def stop():

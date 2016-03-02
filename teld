@@ -165,8 +165,6 @@ class TelescopeDaemon:
 
         self._guide_reference_frame = None
         self._guide_background_tile_size = 0
-        self._guide_offset_ra = 0
-        self._guide_offset_dec = 0
         self._guide_x_binning = 1
         self._guide_y_binning = 1
 
@@ -461,9 +459,6 @@ class TelescopeDaemon:
                 'guide_background_tile_size': self._guide_background_tile_size,
                 'guide_x_binning': self._guide_x_binning,
                 'guide_y_binning': self._guide_y_binning,
-
-                'guide_offset_ra': self._guide_offset_ra,
-                'guide_offset_dec': self._guide_offset_dec,
             })
 
         return data
@@ -836,8 +831,6 @@ class TelescopeDaemon:
                     print('Failed to write to Tel.in')
                     return CommandStatus.Failed
 
-                self._guide_offset_ra = guide_offset_ra
-                self._guide_offset_dec = guide_offset_dec
                 self._offset_ra = offset_ra
                 self._offset_dec = offset_dec
             except:
@@ -855,8 +848,6 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Guiding:
                 return CommandStatus.TelescopeNotGuiding
 
-            self._guide_offset_ra = 0
-            self._guide_offset_dec = 0
             self._guide_reference_frame = None
             self._guide_background_tile_size = 0
             self._status = TelescopeStatus.Tracking
