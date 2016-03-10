@@ -365,9 +365,17 @@ class TelescopeDaemon:
         ra, dec = self._observatory.radec_of(az_radians, alt_radians)
         return float(ra), float(dec)
 
-    def __ha_dec_from_ra_dec(self, ra_radians, dec_radians):
+    def __ha_from_ra(self, ra_radians):
         """Returns the HA and Dec in radians for a given RA and Dec"""
-        return self.__local_sidereal_time() - ra_radians, dec_radians
+        ha = self.__local_sidereal_time() - ra_radians
+        # Deal with the 24 <-> 0 wraparound
+        while ha > math.pi:
+            ha -= 2 * math.pi
+
+        while ha < -math.pi:
+            ha += 2 * math.pi
+
+        return ha
 
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
@@ -405,8 +413,8 @@ class TelescopeDaemon:
     def __slew_to_radec(self, ra_radians, dec_radians):
         """Quickly slew to a specified RA and Dec"""
         # Uses the "HA: Dec:" command to slew
-        ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
-        command = 'HA: {} Dec: {}'.format(ha, dec)
+        ha_radians = self.__ha_from_ra(ra_radians)
+        command = 'HA: {} Dec: {}'.format(ha_radians, dec_radians)
         return self.__point(command, TelState.Slewing, TelState.Stopped, SLEW_TIMEOUT)
 
     def __move_covers(self, fifo_command, active_state, final_state, timeout):
@@ -638,7 +646,7 @@ class TelescopeDaemon:
 
             # Check against telescope limits
             ra, dec = self.__ra_dec_from_alt_az(alt_radians, az_radians)
-            ha, dec = self.__ha_dec_from_ra_dec(ra, dec)
+            ha = self.__ha_from_ra(ra)
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
                 print('failed to move to alt {} az {}; ha {} outside limit ({}, {})'.format(
@@ -674,15 +682,16 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotReady
 
             # Check against telescope limits
-            ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
-            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+            ha_radians = self.__ha_from_ra(ra_radians)
+            if ha_radians < self._ha_negative_limit or dec_radians > self._ha_positive_limit:
                 print('failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
-                    ra_radians, dec_radians, ha, self._ha_negative_limit, self._ha_positive_limit))
+                    ra_radians, dec_radians, dec_radians,
+                    self._ha_negative_limit, self._ha_positive_limit))
                 return CommandStatus.OutsideHALimits
 
-            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+            if dec_radians < self._dec_negative_limit or dec_radians > self._dec_positive_limit:
                 print('failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
-                    ra_radians, dec_radians, dec, self._dec_negative_limit,
+                    ra_radians, dec_radians, dec_radians, self._dec_negative_limit,
                     self._dec_positive_limit))
                 return CommandStatus.OutsideDecLimits
 
@@ -708,15 +717,16 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotReady
 
             # Check against telescope limits
-            ha, dec = self.__ha_dec_from_ra_dec(ra_radians, dec_radians)
-            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+            ha_radians = self.__ha_from_ra(ra_radians)
+            if ha_radians < self._ha_negative_limit or ha_radians > self._ha_positive_limit:
                 print('failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
-                    ra_radians, dec_radians, ha, self._ha_negative_limit, self._ha_positive_limit))
+                    ra_radians, dec_radians, ha_radians,
+                    self._ha_negative_limit, self._ha_positive_limit))
                 return CommandStatus.OutsideHALimits
 
-            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+            if dec_radians < self._dec_negative_limit or dec_radians > self._dec_positive_limit:
                 print('failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
-                    ra_radians, dec_radians, dec, self._dec_negative_limit,
+                    ra_radians, dec_radians, dec_radians, self._dec_negative_limit,
                     self._dec_positive_limit))
                 return CommandStatus.OutsideDecLimits
 
