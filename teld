@@ -38,6 +38,9 @@ import time
 import ephem
 import Pyro4
 
+# Set automatically when generating RPM package
+SOFTWARE_VERSION = 'UNKNOWN'
+
 PYRO_COMM_TIMEOUT = 5
 
 TELD_HOST = '192.168.0.101'
@@ -445,7 +448,8 @@ class TelescopeDaemon:
         """Returns a dictionary containing the current telescope state"""
         data = {
             'state': self._status,
-            'state_label': TelescopeStatus.Names[self._status]
+            'state_label': TelescopeStatus.Names[self._status],
+            'software_version': SOFTWARE_VERSION
         }
 
         if self._status != TelescopeStatus.Disabled:

@@ -1,5 +1,5 @@
 Name:      onemetre-tel-server
-Version:   1.8
+Version:   1.9
 Release:   1
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the Warwick one-metre telescope.
