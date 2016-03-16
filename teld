@@ -129,6 +129,7 @@ class CommandStatus:
 class TelescopeStatus:
     """Status of the telescope hardware"""
     Disabled, NotHomed, Ready, Tracking, Guiding = range(5)
+    Names = ['DISABLED', 'ONLINE BUT NOT HOMED', 'IDLE', 'TRACKING', 'GUIDING']
 
 class TelState:
     """Talon TelState enum"""
@@ -442,7 +443,11 @@ class TelescopeDaemon:
     @Pyro4.expose
     def report_status(self):
         """Returns a dictionary containing the current telescope state"""
-        data = {'state': self._status}
+        data = {
+            'state': self._status,
+            'state_label': TelescopeStatus.Names[self._status]
+        }
+
         if self._status != TelescopeStatus.Disabled:
             alt, az = self.__alt_az_from_ra_dec(self._current_ra, self._current_dec)
             data.update({

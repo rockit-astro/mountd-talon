@@ -74,12 +74,17 @@ STATUS_CODES = {
     -111: 'error: telescope cover power is disabled'
 }
 
-TELESCOPE_STATE_DESCRIPTIONS = {
-    0: '\033[1m\033[91mOFFLINE\033[0m',
-    1: '\033[1m\033[91mONLINE BUT NOT HOMED\033[0m',
-    2: '\033[1mREADY TO OBSERVE\033[0m',
-    3: '\033[1m\033[92mTRACKING TARGET\033[0m',
-    4: '\033[1m\033[92mGUIDING ON TARGET\033[0m'
+FMT_GREEN = '\033[92m'
+FMT_RED = '\033[91m'
+FMT_BOLD = '\033[1m'
+FMT_CLEAR = '\033[0m'
+
+TELESCOPE_STATE_FORMATS = {
+    0: FMT_RED,
+    1: FMT_RED,
+    2: '',
+    3: FMT_GREEN,
+    4: FMT_GREEN
 }
 
 TELESCOPE_COVER_DESCRIPTIONS = {
@@ -366,9 +371,10 @@ def status():
     elif drive_status == -102:
         drive_desc = '\033[1m\033[93mUNKNOWN\033[0m'
 
-    state_desc = '\033[1m\033[93mUNKNOWN\033[0m'
-    if data['state'] in TELESCOPE_STATE_DESCRIPTIONS:
-        state_desc = TELESCOPE_STATE_DESCRIPTIONS[data['state']]
+    state_desc = FMT_BOLD
+    if data['state'] in TELESCOPE_STATE_FORMATS:
+        state_desc += TELESCOPE_STATE_FORMATS[data['state']]
+    state_desc += data['state_label'] + FMT_CLEAR
 
     # Telescope is disabled
     if data['state'] == 0:
