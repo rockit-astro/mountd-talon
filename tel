@@ -39,8 +39,14 @@ POWER_PORT = 9009
 POWER_NAME = 'power_daemon'
 POWER_TIMEOUT = 5
 
+PIPELINE_HOST = '192.168.0.101'
+PIPELINE_PORT = 9012
+PIPELINE_NAME = 'pipeline_daemon'
+PIPELINE_TIMEOUT = 5
+
 TEL_URI = 'PYRO:' + TEL_NAME + '@' + TEL_HOST + ':' + str(TEL_PORT)
 POWER_URI = 'PYRO:' + POWER_NAME + '@' + POWER_HOST + ':' + str(POWER_PORT)
+PIPELINE_URI = 'PYRO:' + PIPELINE_NAME + '@' + PIPELINE_HOST + ':' + str(PIPELINE_PORT)
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 # Positions in degrees (alt, az)
@@ -62,6 +68,8 @@ STATUS_CODES = {
     12: 'error: telescope is not tracking',
     13: 'error: telescope is not guiding',
     14: 'error: telescope has already been initialized',
+    15: 'error: telescope is tracking',
+    16: 'error: telescope is guiding',
     20: 'error: requested coordinates outside HA limits',
     21: 'error: requested coordinates outside Dec limits',
 
@@ -69,6 +77,7 @@ STATUS_CODES = {
     -100: 'error: terminated by user',
     -101: 'error: unable to communicate with telescope daemon',
     -102: 'error: unable to communicate with power system daemon',
+    -103: 'error: unable to communicate with data pipeline daemon',
 
     -110: 'error: telescope drive power is disabled',
     -111: 'error: telescope cover power is disabled'
@@ -335,27 +344,31 @@ def calibrate(args):
 def guide(args):
     """Interact with the autoguider"""
     if len(args) > 0:
-        if args[0] == 'start':
-            if len(args) < 3:
-                print('usage: {} guide start <reference frame> <x binning> <y binning> ' \
-                    '<background tile size>'.format(SCRIPT_NAME))
-                return -1
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
-                return teld.start_guiding(args[1], int(args[2]), int(args[3]), int(args[4]))
-        elif args[0] == 'update':
+        if args[0] == 'blue' or args[0] == 'red':
             if len(args) < 2:
-                print('usage: {} guide update <new frame>'.format(SCRIPT_NAME))
+                print('usage: {} guide {} <background tile size>'.format(
+                    SCRIPT_NAME, args[0]))
                 return -1
+
+            tile_size = int(args[1])
+            camera = 'BLUE' if args[0] == 'blue' else 'RED'
+            pipeline_status = set_guide_camera(camera, tile_size)
+            if pipeline_status != 0:
+                return pipeline_status
+
             ping_teld()
             with Pyro4.Proxy(TEL_URI) as teld:
-                return teld.update_guiding(args[1])
+                return teld.start_guiding()
         elif args[0] == 'stop':
             ping_teld()
             with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.stop_guiding()
 
-    print('usage: {} guide [start|update|stop]'.format(SCRIPT_NAME))
+            pipeline_status = set_guide_camera(None)
+            if pipeline_status != 0:
+                return pipeline_status
+
+    print('usage: {} guide [blue|red|stop]'.format(SCRIPT_NAME))
     return -1
 
 def status():
@@ -415,12 +428,6 @@ def status():
     print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
     print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
 
-    if data['state'] == 4:
-        print('   Guiding on frame \033[1m{}\033[0m'.format(data['guide_reference_frame']))
-        print('   Using \033[1m{}\033[0m x \033[1m{}\033[0m binning and ' \
-            '\033[1m{}\033[0m px background tiles'.format(
-                data['guide_x_binning'], data['guide_y_binning'],
-                data['guide_background_tile_size']))
     return 0
 
 def stop():
@@ -428,6 +435,10 @@ def stop():
     ping_teld()
     with Pyro4.Proxy(TEL_URI) as teld:
         return teld.stop()
+
+    pipeline_status = set_guide_camera(None)
+    if pipeline_status != 0:
+        return pipeline_status
 
 def initialize():
     """Enables the power and talon daemons"""
@@ -474,6 +485,19 @@ def query_power_daemon(switch_name, disabled_code):
             return 0 if powered else disabled_code
     except Pyro4.errors.CommunicationError:
         return -102
+    finally:
+        Pyro4.config.COMMTIMEOUT = timeout
+
+def set_guide_camera(camera_id, background_tile_size=0):
+    """Checks specified PDU switch and returns an error code if disabled"""
+    timeout = Pyro4.config.COMMTIMEOUT
+    Pyro4.config.COMMTIMEOUT = PIPELINE_TIMEOUT
+    try:
+        with Pyro4.Proxy(PIPELINE_URI) as pipeline:
+            pipeline.set_guide_camera(camera_id, background_tile_size)
+            return 0
+    except Pyro4.errors.CommunicationError:
+        return -103
     finally:
         Pyro4.config.COMMTIMEOUT = timeout
 

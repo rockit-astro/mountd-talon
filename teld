@@ -53,8 +53,6 @@ POWERD_NAME = 'power_daemon'
 
 POWERD_URI = 'PYRO:' + POWERD_NAME + '@' + POWERD_HOST + ':' + str(POWERD_PORT)
 
-# TODO: Reference installed copy
-PIXELSHIFT_PATH = '/home/saft/src/pixelshift/pixelshift'
 FIFO_PATH = '/usr/local/telescope/comm/'
 FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
 
@@ -102,11 +100,6 @@ FOCUS_TIMEOUT = 60
 # Time for talon and the telescope hardware to boot to a usable state
 INITIALIZATION_TIMEOUT = 60
 
-# arcsec -> radians per pixel for an unbinned image
-TELESCOPE_PIXEL_SCALE = 0.391 * math.pi / 648000
-
-GUIDE_FUDGE_FACTOR = 0.5
-
 SLEW_TO_ZENITH = 'Alt: 1.570796 Az: 0'
 
 # This should be kept in sync with the dictionary in tel
@@ -125,6 +118,8 @@ class CommandStatus:
     TelescopeNotTracking = 12
     TelescopeNotGuiding = 13
     TelescopeNotUninitialized = 14
+    TelescopeIsTracking = 15
+    TelescopeIsGuiding = 16
 
     OutsideHALimits = 20
     OutsideDecLimits = 21
@@ -166,11 +161,6 @@ class TelescopeDaemon:
         # Measured in radians
         self._offset_ra = 0
         self._offset_dec = 0
-
-        self._guide_reference_frame = None
-        self._guide_background_tile_size = 0
-        self._guide_x_binning = 1
-        self._guide_y_binning = 1
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
@@ -470,14 +460,6 @@ class TelescopeDaemon:
                 'telescope_focus_um': self._telescope_focus_um,
             })
 
-        if self._status == TelescopeStatus.Guiding:
-            data.update({
-                'guide_reference_frame': self._guide_reference_frame,
-                'guide_background_tile_size': self._guide_background_tile_size,
-                'guide_x_binning': self._guide_x_binning,
-                'guide_y_binning': self._guide_y_binning,
-            })
-
         return data
 
     @Pyro4.expose
@@ -553,6 +535,9 @@ class TelescopeDaemon:
             if self._status == TelescopeStatus.Disabled:
                 return CommandStatus.TelescopeNotInitialized
 
+            if self._status > TelescopeStatus.Ready:
+                return CommandStatus.TelescopeIsTracking
+
             print('Homing HA axis...')
             if not self.__point('homeH', TelState.Homing, TelState.Stopped, HOMING_TIMEOUT):
                 return CommandStatus.Failed
@@ -575,6 +560,9 @@ class TelescopeDaemon:
 
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
+
+            if self._status > TelescopeStatus.Ready:
+                return CommandStatus.TelescopeIsTracking
 
             if not self.__point(SLEW_TO_ZENITH, TelState.Slewing, TelState.Stopped,
                                 SLEW_TIMEOUT):
@@ -653,6 +641,9 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
+            if self._status > TelescopeStatus.Ready:
+                return CommandStatus.TelescopeIsTracking
+
             # Check against telescope limits
             ra, dec = self.__ra_dec_from_alt_az(alt_radians, az_radians)
             ha = self.__ha_from_ra(ra)
@@ -690,6 +681,9 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
+            if self._status > TelescopeStatus.Ready:
+                return CommandStatus.TelescopeIsTracking
+
             # Check against telescope limits
             ha_radians = self.__ha_from_ra(ra_radians)
             if ha_radians < self._ha_negative_limit or dec_radians > self._ha_positive_limit:
@@ -724,6 +718,9 @@ class TelescopeDaemon:
 
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
+
+            if self._status == TelescopeStatus.Guiding:
+                return CommandStatus.TelescopeIsGuiding
 
             # Check against telescope limits
             ha_radians = self.__ha_from_ra(ra_radians)
@@ -764,6 +761,9 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Ready:
                 return CommandStatus.TelescopeNotReady
 
+            if self._status == TelescopeStatus.Guiding:
+                return CommandStatus.TelescopeIsGuiding
+
             if self._status == TelescopeStatus.Tracking:
                 # When tracking we must use the xdelta offset to directly
                 # offset at the motor controller
@@ -793,8 +793,8 @@ class TelescopeDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
-    def start_guiding(self, reference_frame, x_binning, y_binning, background_tile_size):
-        """Configure and enable the autoguider"""
+    def start_guiding(self):
+        """Enable the autoguider"""
         with TryLock(self._command_lock) as success:
             if not success:
                 return CommandStatus.Blocked
@@ -802,20 +802,17 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Tracking:
                 return CommandStatus.TelescopeNotTracking
 
-            self._guide_reference_frame = reference_frame
-            self._guide_background_tile_size = background_tile_size
-            self._guide_x_binning = x_binning
-            self._guide_y_binning = y_binning
             self._status = TelescopeStatus.Guiding
-
-            print('Starting guider with reference {}, {}x{} binning, and {} px tiles'.format(
-                reference_frame, x_binning, y_binning, background_tile_size))
+            print('Enabled guiding')
 
             return CommandStatus.Succeeded
 
     @Pyro4.expose
-    def update_guiding(self, filename):
-        """Update the autoguider with a new frame"""
+    def offset_radec_guiding(self, ra_delta_radians, dec_delta_radians):
+        """Offsets the telescope relative to the current position.
+           Called by the autoguider code, so bypasses the regular offset
+           checks (but only works when guiding is enabled)
+        """
         with TryLock(self._command_lock) as success:
             if not success:
                 return CommandStatus.Blocked
@@ -823,37 +820,20 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Guiding:
                 return CommandStatus.TelescopeNotGuiding
 
-            try:
-                output = subprocess.check_output(
-                    [PIXELSHIFT_PATH, filename, self._guide_reference_frame,
-                     str(self._guide_background_tile_size)], universal_newlines=True, timeout=5)
+            offset_ra = self._offset_ra + ra_delta_radians
+            offset_dec = self._offset_dec + dec_delta_radians
 
-                coords = output.split(' ')
-                guide_x_scale = TELESCOPE_PIXEL_SCALE * self._guide_x_binning
-                guide_y_scale = -TELESCOPE_PIXEL_SCALE * self._guide_y_binning
-                guide_offset_ra = guide_x_scale * float(coords[0]) * GUIDE_FUDGE_FACTOR
-                guide_offset_dec = guide_y_scale * float(coords[1]) * GUIDE_FUDGE_FACTOR
-                print('px: {} {}'.format(float(coords[0]), float(coords[1])))
-                print('arcsec: {} {}'.format(
-                    guide_offset_ra * 648000 / math.pi,
-                    guide_offset_dec * 648000 / math.pi))
+            # xdelta expects angles in degrees
+            fifo_command = 'xdelta({},{})'.format(
+                offset_ra * 180 / math.pi,
+                offset_dec * 180 / math.pi)
 
-                offset_ra = self._offset_ra + guide_offset_ra
-                offset_dec = self._offset_dec + guide_offset_dec
-
-                # xdelta expects angles in degrees
-                fifo_command = 'xdelta({},{})'.format(
-                    offset_ra * 180 / math.pi,
-                    offset_dec * 180 / math.pi)
-
-                if not fifo_write('Tel.in', fifo_command):
-                    print('Failed to write to Tel.in')
-                    return CommandStatus.Failed
-
-                self._offset_ra = offset_ra
-                self._offset_dec = offset_dec
-            except:
+            if not fifo_write('Tel.in', fifo_command):
+                print('Failed to write to Tel.in')
                 return CommandStatus.Failed
+
+            self._offset_ra = offset_ra
+            self._offset_dec = offset_dec
 
             return CommandStatus.Succeeded
 
@@ -867,11 +847,9 @@ class TelescopeDaemon:
             if self._status < TelescopeStatus.Guiding:
                 return CommandStatus.TelescopeNotGuiding
 
-            self._guide_reference_frame = None
-            self._guide_background_tile_size = 0
             self._status = TelescopeStatus.Tracking
 
-            print('Stopping guiding')
+            print('Disabled guiding')
             return CommandStatus.Succeeded
 
     @Pyro4.expose

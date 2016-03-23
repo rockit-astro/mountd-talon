@@ -23,7 +23,7 @@ _tel()
             opts="home limits"
             ;;
         guide)
-            opts="start update stop"
+            opts="red blue stop"
             ;;
         start)
             local IFS=$'\n'
