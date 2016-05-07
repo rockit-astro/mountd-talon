@@ -741,7 +741,7 @@ class TelescopeDaemon:
                 return CommandStatus.Failed
 
             # Do the final adjustment and start tracking
-            command = 'RA: {} Dec: {}'.format(ra_radians, dec_radians)
+            command = 'RA: {} Dec: {} Epoch: 2000'.format(ra_radians, dec_radians)
             if not self.__point(command, TelState.Hunting, TelState.Tracking, SLEW_TIMEOUT):
                 return CommandStatus.Failed
 
