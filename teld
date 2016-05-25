@@ -95,10 +95,10 @@ TELSTAT_QUERY_DELAY = 1
 # Covers should update immediately, so delay mainly covers fifo / telstat delays
 COVER_TIMEOUT = 2.5
 
-# This can take quite a while
-# TODO: Measure this time
+# Homing and limit timeouts are per-axis
 HOMING_TIMEOUT = 120
 LIMIT_TIMEOUT = 120
+
 SLEW_TIMEOUT = 120
 FOCUS_TIMEOUT = 60
 
@@ -140,6 +140,11 @@ class TelState:
     """Talon TelState enum"""
     Stopped, Hunting, Tracking, Slewing, Homing, Limiting = range(6)
     Names = ['TS_STOPPED', 'TS_HUNTING', 'TS_TRACKING', 'TS_SLEWING', 'TS_HOMING', 'TS_LIMITING']
+
+class FocusState:
+    """Focus status built from talon motor flags"""
+    NotHomed, Homing, Limiting, Ready = range(4)
+    Names = ['NOT_HOMED', 'HOMING', 'LIMITING', 'READY']
 
 class CoverState:
     """Talon CoverState enum"""
@@ -193,6 +198,8 @@ class TelescopeDaemon:
         self._last_cover_state = CoverState.Absent
         self._cover_state = CoverState.Absent
 
+        self._last_telescope_focus_state = FocusState.NotHomed
+        self._telescope_focus_state = FocusState.NotHomed
         self._telescope_focus_um = 0
         self._last_telescope_focus_um = 0
 
@@ -233,9 +240,20 @@ class TelescopeDaemon:
                     self._current_ra = shm_read_double(self._talon_shm, SHM_RA_OFFSET)
                     self._current_dec = shm_read_double(self._talon_shm, SHM_DEC_OFFSET)
 
+                    focus_flags = shm_read_ushort(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
                     focus_step = shm_read_int(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_STEP)
                     focus_pos = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_CPOS)
                     focus_df = shm_read_double(self._talon_shm, SHM_FOCUS_AXIS +SHM_AXIS_DF)
+
+                    self._last_telescope_focus_state = self._telescope_focus_state
+                    self._telescope_focus_state = FocusState.NotHomed
+                    if focus_flags & 0x80 != 0:
+                        self._telescope_focus_state = FocusState.Homing
+                    elif focus_flags & 0x100 != 0:
+                        self._telescope_focus_state = FocusState.Limiting
+                    elif focus_flags & 0x200 != 0:
+                        self._telescope_focus_state = FocusState.Ready
+
                     self._last_telescope_focus_um = self._telescope_focus_um
                     self._telescope_focus_um = focus_step * focus_pos / \
                         (2 * math.pi * focus_df)
@@ -278,7 +296,7 @@ class TelescopeDaemon:
             with self._talon_shm_lock:
                 ra_flags = shm_read_ushort(self._talon_shm, SHM_RA_AXIS + SHM_AXIS_FLAGS)
                 dec_flags = shm_read_ushort(self._talon_shm, SHM_DEC_AXIS + SHM_AXIS_FLAGS)
-#               focus_flags = shm_read_ushort(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
+                focus_flags = shm_read_ushort(self._talon_shm, SHM_FOCUS_AXIS + SHM_AXIS_FLAGS)
 
                 # Update observatory state
                 obs = ephem.Observer()
@@ -302,21 +320,19 @@ class TelescopeDaemon:
                                                            SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             # Check whether the axes are already homed
-            # TODO: include focus homing
-            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
+            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0 and focus_flags & 0x200 != 0:
                 self._status = TelescopeStatus.Ready
             else:
                 self._status = TelescopeStatus.NotHomed
 
     def __poll_tel_status(self):
-        """Background thread that polls telstat for the current telescope status"""
+        """Background thread that polls shared memory for the current telescope status"""
         while True:
             # Acquire all condition locks to avoid races with commands
             with self._cover_condition:
                 with self._pointing_condition:
                     with self._telescope_focus_condition:
                         with self._status_condition:
-                            # Update state from shared memory
                             self.__update_state_from_talon_shm()
 
                             if self._last_pointing_state != self._pointing_state:
@@ -332,6 +348,11 @@ class TelescopeDaemon:
                             if self._last_telescope_focus_um != self._telescope_focus_um:
                                 print('tel focus: {:2f} -> {:2f}'.format(
                                     self._last_telescope_focus_um, self._telescope_focus_um))
+                                self._telescope_focus_condition.notify()
+
+                            if self._telescope_focus_state != self._last_telescope_focus_state:
+                                print('tel focus state: {} -> {}'.format(
+                                    self._last_telescope_focus_state, self._telescope_focus_state))
                                 self._telescope_focus_condition.notify()
 
                             if self._last_status != self._status:
@@ -411,6 +432,30 @@ class TelescopeDaemon:
 
         return True
 
+    def __focus(self, fifo_command, active_state, final_state, timeout):
+        """Issues a focus command and blocks until the final state is reached (or timeout)"""
+        with self._telescope_focus_condition:
+            if not fifo_write('Focus.in', fifo_command):
+                print('Failed to write to Focus.in')
+                return False
+
+            stopped = False
+            complete = False
+            while True:
+                self._telescope_focus_condition.wait(timeout)
+                stopped = self._force_stopped or self._status == TelescopeStatus.Disabled
+
+                # Ignore the initial state change to <active_state>, which we may
+                # or may not recieve depending on the timing of the telstat loop
+                if self._telescope_focus_state == active_state and not stopped:
+                    continue
+                break
+
+            if self._telescope_focus_state != final_state or stopped:
+                return False
+
+        return True
+
     def __slew_to_radec(self, ra_radians, dec_radians):
         """Quickly slew to a specified RA and Dec"""
         # Uses the "HA: Dec:" command to slew
@@ -454,6 +499,7 @@ class TelescopeDaemon:
             data.update({
                 'pointing_state': TelState.Names[self._pointing_state],
                 'cover_state': CoverState.Names[self._cover_state],
+                'telescope_focus_state': FocusState.Names[self._telescope_focus_state],
 
                 'ra': self._current_ra,
                 'dec': self._current_dec,
@@ -562,7 +608,9 @@ class TelescopeDaemon:
             if not self.__point('homeD', TelState.Homing, TelState.Stopped, HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
-            # TODO: Focus home
+            print('Homing Focus axis...')
+            if not self.__focus('home', FocusState.Homing, FocusState.Ready, HOMING_TIMEOUT):
+                return CommandStatus.Failed
 
             self._status = TelescopeStatus.Ready
             return CommandStatus.Succeeded
@@ -610,7 +658,12 @@ class TelescopeDaemon:
                 self._dec_negative_limit = shm_read_double(self._talon_shm,
                                                            SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
-            # TODO: Focus limits
+            print('Finding Focus limits...')
+            if not self.__focus('limits', FocusState.Limiting, FocusState.Ready, LIMIT_TIMEOUT):
+                return CommandStatus.Failed
+
+            # TODO: Return to the nominal focus point (-1950 um)
+
             return CommandStatus.Succeeded
 
     @Pyro4.expose
@@ -875,6 +928,7 @@ class TelescopeDaemon:
             if not success:
                 return CommandStatus.Blocked
 
+            # TODO: merge this into the __focus command
             with self._telescope_focus_condition:
                 focus_offset = focus_um - self._telescope_focus_um
                 if math.fabs(focus_offset) < TELESCOPE_FOCUS_TOLERANCE:
