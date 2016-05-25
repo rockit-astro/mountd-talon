@@ -49,7 +49,7 @@ TELD_NAME = 'telescope_daemon'
 
 POWERD_HOST = '192.168.0.102'
 POWERD_PORT = 9009
-POWERD_NAME = 'power_daemon'
+POWERD_NAME = 'onemetre_power_daemon'
 
 POWERD_URI = 'PYRO:' + POWERD_NAME + '@' + POWERD_HOST + ':' + str(POWERD_PORT)
 
