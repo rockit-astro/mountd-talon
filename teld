@@ -51,7 +51,12 @@ POWERD_HOST = '192.168.0.102'
 POWERD_PORT = 9009
 POWERD_NAME = 'onemetre_power_daemon'
 
+ROOMALERTD_HOST = '192.168.0.102'
+ROOMALERTD_PORT = 9008
+ROOMALERTD_NAME = 'onemetre_roomalert_daemon'
+
 POWERD_URI = 'PYRO:' + POWERD_NAME + '@' + POWERD_HOST + ':' + str(POWERD_PORT)
+ROOMALERTD_URI = 'PYRO:' + ROOMALERTD_NAME + '@' + ROOMALERTD_HOST + ':' + str(ROOMALERTD_PORT)
 
 FIFO_PATH = '/usr/local/telescope/comm/'
 FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
@@ -111,6 +116,8 @@ class CommandStatus:
     Blocked = 2
 
     CannotCommunicateWithPowerDaemon = 5
+    CannotCommunicateWithRoomAlertDaemon = 6
+    SecuritySystemTripped = 7
 
     # Command-specific codes
     TelescopeNotInitialized = 10
@@ -471,6 +478,15 @@ class TelescopeDaemon:
 
             if self._status != TelescopeStatus.Disabled:
                 return CommandStatus.TelescopeNotUninitialized
+
+            # Check hard limits (security system)
+            try:
+                with Pyro4.Proxy(ROOMALERTD_URI) as roomalert:
+                    status = roomalert.last_measurement()
+                    if 'security_system_safe' not in status or not status['security_system_safe']:
+                        return CommandStatus.SecuritySystemTripped
+            except Pyro4.errors.CommunicationError:
+                return CommandStatus.CannotCommunicateWithRoomAlertDaemon
 
             # Turn on CSIMC controller card power
             try:

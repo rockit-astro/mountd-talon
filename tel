@@ -61,6 +61,8 @@ STATUS_CODES = {
     1: 'error: command failed',
     2: 'error: another command is already running',
     5: 'error: telescope failed to communicate with power system daemon',
+    6: 'error: telescope failed to communicate with roomalert daemon',
+    7: 'error: hard limits (security system) have been tripped',
 
     # Command-specific codes
     10: 'error: telescope has not been initialized',
