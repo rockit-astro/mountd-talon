@@ -144,7 +144,7 @@ class TelState:
 class FocusState:
     """Focus status built from talon motor flags"""
     NotHomed, Homing, Limiting, Ready = range(4)
-    Names = ['NOT_HOMED', 'HOMING', 'LIMITING', 'READY']
+    Names = ['FOC_NOT_HOMED', 'FOC_HOMING', 'FOC_LIMITING', 'FOC_READY']
 
 class CoverState:
     """Talon CoverState enum"""
@@ -351,12 +351,13 @@ class TelescopeDaemon:
                                 self._telescope_focus_condition.notify()
 
                             if self._telescope_focus_state != self._last_telescope_focus_state:
-                                print('tel focus state: {} -> {}'.format(
-                                    self._last_telescope_focus_state, self._telescope_focus_state))
+                                print(FocusState.Names[self._last_telescope_focus_state] + \
+                                    ' -> ' + FocusState.Names[self._telescope_focus_state])
                                 self._telescope_focus_condition.notify()
 
                             if self._last_status != self._status:
-                                print('Status {} -> {}'.format(self._last_status, self._status))
+                                print(TelescopeStatus.Names[self._last_status] + ' -> ' + \
+                                    TelescopeStatus.Names[self._status])
                                 self._status_condition.notify()
 
                             self._last_status = self._status
