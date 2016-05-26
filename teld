@@ -929,6 +929,9 @@ class TelescopeDaemon:
             if not success:
                 return CommandStatus.Blocked
 
+            if self._status < TelescopeStatus.Ready:
+                return CommandStatus.TelescopeNotReady
+
             # TODO: merge this into the __focus command
             with self._telescope_focus_condition:
                 focus_offset = focus_um - self._telescope_focus_um
