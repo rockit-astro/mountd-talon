@@ -495,6 +495,13 @@ class TelescopeDaemon:
             'software_version': SOFTWARE_VERSION
         }
 
+        if self._observatory is not None:
+            data.update({
+                'site_latitude': float(self._observatory.lat),
+                'site_longitude': float(self._observatory.lon),
+                'site_elevation': float(self._observatory.elevation),
+            })
+
         if self._status != TelescopeStatus.Disabled:
             alt, az = self.__alt_az_from_ra_dec(self._current_ra, self._current_dec)
             data.update({
