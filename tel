@@ -362,13 +362,14 @@ def guide(args):
             with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.start_guiding()
         elif args[0] == 'stop':
-            ping_teld()
-            with Pyro4.Proxy(TEL_URI) as teld:
-                return teld.stop_guiding()
 
             pipeline_status = set_guide_camera(None)
             if pipeline_status != 0:
-                return pipeline_status
+                print('warning: failed to notify pipeline')
+
+            ping_teld()
+            with Pyro4.Proxy(TEL_URI) as teld:
+                return teld.stop_guiding()
 
     print('usage: {} guide [blue|red|stop]'.format(SCRIPT_NAME))
     return -1
@@ -434,13 +435,13 @@ def status():
 
 def stop():
     """Stops any active telescope movement"""
+    pipeline_status = set_guide_camera(None)
+    if pipeline_status != 0:
+        print('warning: failed to notify pipeline')
+
     ping_teld()
     with Pyro4.Proxy(TEL_URI) as teld:
         return teld.stop()
-
-    pipeline_status = set_guide_camera(None)
-    if pipeline_status != 0:
-        return pipeline_status
 
 def initialize():
     """Enables the power and talon daemons"""
