@@ -320,7 +320,8 @@ class TelescopeDaemon:
                                                            SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
             # Check whether the axes are already homed
-            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0 and focus_flags & 0x200 != 0:
+            # TODO: Add `and focus_flags & 0x200 != 0` after fixing focus encoder
+            if ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0:
                 self._status = TelescopeStatus.Ready
             else:
                 self._status = TelescopeStatus.NotHomed
@@ -616,9 +617,10 @@ class TelescopeDaemon:
             if not self.__point('homeD', TelState.Homing, TelState.Stopped, HOMING_TIMEOUT):
                 return CommandStatus.Failed
 
-            print('Homing Focus axis...')
-            if not self.__focus('home', FocusState.Homing, FocusState.Ready, HOMING_TIMEOUT):
-                return CommandStatus.Failed
+            # TODO: disabled while focus encoder is broken
+            # print('Homing Focus axis...')
+            # if not self.__focus('home', FocusState.Homing, FocusState.Ready, HOMING_TIMEOUT):
+            #     return CommandStatus.Failed
 
             self._status = TelescopeStatus.Ready
             return CommandStatus.Succeeded
@@ -666,9 +668,10 @@ class TelescopeDaemon:
                 self._dec_negative_limit = shm_read_double(self._talon_shm,
                                                            SHM_DEC_AXIS + SHM_AXIS_NEGLIM)
 
-            print('Finding Focus limits...')
-            if not self.__focus('limits', FocusState.Limiting, FocusState.Ready, LIMIT_TIMEOUT):
-                return CommandStatus.Failed
+            # TODO: disabled while focus encoder is broken
+            # print('Finding Focus limits...')
+            # if not self.__focus('limits', FocusState.Limiting, FocusState.Ready, LIMIT_TIMEOUT):
+            #     return CommandStatus.Failed
 
             # TODO: Return to the nominal focus point (-1950 um)
 
@@ -936,8 +939,9 @@ class TelescopeDaemon:
             if not success:
                 return CommandStatus.Blocked
 
-            if self._status < TelescopeStatus.Ready:
-                return CommandStatus.TelescopeNotReady
+            # TODO: disabled while focus encoder is broken
+            # if self._status < TelescopeStatus.Ready:
+            #     return CommandStatus.TelescopeNotReady
 
             # TODO: merge this into the __focus command
             with self._telescope_focus_condition:
