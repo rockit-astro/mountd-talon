@@ -7,12 +7,6 @@ _tel()
     opts="status covers drive park slew track offset focus stop guide cal init kill reboot"
 
     case "${prev}" in
-        guide)
-            opts="start update stop"
-            ;;
-        covers)
-            opts="open close"
-            ;;
         drive)
             opts="enable disable"
             ;;
