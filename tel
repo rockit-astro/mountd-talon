@@ -346,26 +346,27 @@ def calibrate(args):
 def guide(args):
     """Interact with the autoguider"""
     if len(args) > 0:
-        if args[0] == 'blue' or args[0] == 'red':
-            if len(args) < 2:
-                print('usage: {} guide {} <background tile size>'.format(
-                    SCRIPT_NAME, args[0]))
-                return -1
+        if args[0] == 'blue' or args[0] == 'red' or args[0] == 'resume':
+            if args[0] != 'resume':
+                if len(args) < 2:
+                    print('usage: {} guide {} <background tile size>'.format(
+                        SCRIPT_NAME, args[0]))
+                    return -1
 
-            tile_size = int(args[1])
-            camera = 'BLUE' if args[0] == 'blue' else 'RED'
-            pipeline_status = set_guide_camera(camera, tile_size)
-            if pipeline_status != 0:
-                return pipeline_status
+                tile_size = int(args[1])
+                camera = 'BLUE' if args[0] == 'blue' else 'RED'
+                pipeline_status = set_guide_camera(camera, tile_size)
+                if pipeline_status != 0:
+                    return pipeline_status
 
             ping_teld()
             with Pyro4.Proxy(TEL_URI) as teld:
                 return teld.start_guiding()
-        elif args[0] == 'stop':
-
-            pipeline_status = set_guide_camera(None)
-            if pipeline_status != 0:
-                print('warning: failed to notify pipeline')
+        elif args[0] == 'stop' or args[0] == 'pause':
+            if args[0] != 'pause':
+                pipeline_status = set_guide_camera(None)
+                if pipeline_status != 0:
+                    print('warning: failed to notify pipeline')
 
             ping_teld()
             with Pyro4.Proxy(TEL_URI) as teld:
