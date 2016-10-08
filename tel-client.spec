@@ -1,5 +1,5 @@
 Name:      onemetre-tel-client
-Version:   1.15
+Version:   1.16
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope client for the Warwick one-metre telescope.
