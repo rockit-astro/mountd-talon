@@ -1,12 +1,12 @@
 Name:      onemetre-tel-server
-Version:   1.17
+Version:   1.18
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the Warwick one-metre telescope.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-Pyro4, python3-sysv_ipc, python3-pyephem, %{?systemd_requires}
+Requires:  python3, python3-Pyro4, python3-sysv_ipc, python3-warwickobservatory, python3-pyephem, %{?systemd_requires}
 BuildRequires: systemd-rpm-macros
 
 %description

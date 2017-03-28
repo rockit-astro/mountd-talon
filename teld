@@ -37,26 +37,11 @@ import threading
 import time
 import ephem
 import Pyro4
+import warwick.observatory as observatory
+from warwick.observatory import TryLock
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
-
-PYRO_COMM_TIMEOUT = 5
-
-TELD_HOST = '192.168.0.101'
-TELD_PORT = 9003
-TELD_NAME = 'telescope_daemon'
-
-POWERD_HOST = '192.168.0.102'
-POWERD_PORT = 9009
-POWERD_NAME = 'onemetre_power_daemon'
-
-ROOMALERTD_HOST = '192.168.0.102'
-ROOMALERTD_PORT = 9008
-ROOMALERTD_NAME = 'onemetre_roomalert_daemon'
-
-POWERD_URI = 'PYRO:' + POWERD_NAME + '@' + POWERD_HOST + ':' + str(POWERD_PORT)
-ROOMALERTD_URI = 'PYRO:' + ROOMALERTD_NAME + '@' + ROOMALERTD_HOST + ':' + str(ROOMALERTD_PORT)
 
 FIFO_PATH = '/usr/local/telescope/comm/'
 FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
@@ -150,21 +135,6 @@ class CoverState:
     """Talon CoverState enum"""
     Absent, Idle, Opening, Closing, Open, Closed = range(6)
     Names = ['CV_ABSENT', 'CV_IDLE', 'CV_OPENING', 'CV_CLOSING', 'CV_OPEN', 'CV_CLOSED']
-
-class TryLock(object):
-    """Helper object for use with `with` statements"""
-    def __init__(self, lock):
-        self._lock = lock
-        self._locked = False
-
-    def __enter__(self):
-        self._locked = self._lock.acquire(False)
-        return self._locked
-
-    def __exit__(self, *args):
-        if self._locked:
-            self._lock.release()
-            self._locked = False
 
 class TelescopeDaemon:
     """Daemon interface for talon subystems"""
@@ -536,7 +506,7 @@ class TelescopeDaemon:
 
             # Check hard limits (security system)
             try:
-                with Pyro4.Proxy(ROOMALERTD_URI) as roomalert:
+                with observatory.daemons.onemetre_roomalert.connect() as roomalert:
                     status = roomalert.last_measurement()
                     if 'security_system_safe' not in status or not status['security_system_safe']:
                         return CommandStatus.SecuritySystemTripped
@@ -545,7 +515,7 @@ class TelescopeDaemon:
 
             # Turn on CSIMC controller card power
             try:
-                with Pyro4.Proxy(POWERD_URI) as power:
+                with observatory.daemons.onemetre_power.connect() as power:
                     if not power.switch('telescope_12v', True):
                         return CommandStatus.CannotCommunicateWithPowerDaemon
             except Pyro4.errors.CommunicationError:
@@ -564,7 +534,7 @@ class TelescopeDaemon:
             if self._status == TelescopeStatus.Disabled:
                 # Clean up after failed initialization
                 try:
-                    with Pyro4.Proxy(POWERD_URI) as power:
+                    with observatory.daemons.onemetre_power.connect() as power:
                         if not power.switch('telescope_12v', False):
                             return CommandStatus.CannotCommunicateWithPowerDaemon
                 except Pyro4.errors.CommunicationError:
@@ -588,7 +558,7 @@ class TelescopeDaemon:
             # The main daemon thread will detect the cards going away
             # and clean up as required.
             try:
-                with Pyro4.Proxy(POWERD_URI) as power:
+                with observatory.daemons.onemetre_power.connect() as power:
                     if not power.switch('telescope_12v', False):
                         return CommandStatus.CannotCommunicateWithPowerDaemon
             except Pyro4.errors.CommunicationError:
@@ -1060,18 +1030,6 @@ def shm_read_ushort(shm, offset):
     """read a ushort from a specified offset in a specified shared memory segment"""
     return struct.unpack_from('H', shm.read(2, offset))[0]
 
-def spawn_daemon():
-    """Spawns the daemon and registers it with Pyro"""
-    Pyro4.config.COMMTIMEOUT = PYRO_COMM_TIMEOUT
-    Pyro4.config.REQUIRE_EXPOSE = True
-
-    pyro = Pyro4.Daemon(host=TELD_HOST, port=TELD_PORT)
-    telescope = TelescopeDaemon()
-    uri = pyro.register(telescope, objectId=TELD_NAME)
-
-    print('Starting telescope daemon with Pyro ID:', uri)
-    pyro.requestLoop()
-    print('Stopping telescope daemon with Pyro ID:', uri)
-
 if __name__ == '__main__':
-    spawn_daemon()
+    observatory.daemons.onemetre_telescope.launch(TelescopeDaemon())
+
