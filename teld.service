@@ -7,8 +7,10 @@ After=network-online.target
 [Service]
 Restart=on-failure
 Type=simple
-User=talon
-ExecStart=/usr/bin/env python3 -u /usr/bin/teld
+#User=talon
+ExecStart=/usr/bin/env python3.4 -u /usr/bin/teld
+ExecStartPost=/usr/bin/env python3.4 -u /usr/bin/obslog info teld Started by systemd
+ExecStopPost=/usr/bin/env python3.4 -u /usr/bin/obslog info teld Stopped by systemd
 StandardOutput=syslog
 StandardError=syslog
 

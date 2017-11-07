@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.4
 #
 # This file is part of teld.
 #
@@ -25,7 +25,7 @@ import os
 import sys
 import time
 import Pyro4
-import warwick.observatory as observatory
+from warwick.observatory.common import daemons
 
 # This timeout is used for an initial ping before running the real command
 # The real commands may take much longer than this, so we can't apply the timeout there.
@@ -158,11 +158,10 @@ def operate_cover(args):
             return cover_status
 
         ping_teld()
-        with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+        with daemons.onemetre_telescope.connect(timeout=0) as teld:
             if args[0] == 'open':
                 return teld.open_covers()
-            else:
-                return teld.close_covers()
+            return teld.close_covers()
 
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
     return -1
@@ -172,7 +171,7 @@ def drive_power(args):
     if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
         try:
             enable = args[0] == 'enable'
-            with observatory.daemons.onemetre_power.connect() as powerd:
+            with daemons.onemetre_power.connect() as powerd:
                 success = powerd.switch('telescope_80v', enable)
                 return 0 if success else 1
         except Pyro4.errors.CommunicationError:
@@ -194,7 +193,7 @@ def park(args):
 
         alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
         ping_teld()
-        with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+        with daemons.onemetre_telescope.connect(timeout=0) as teld:
             return teld.slew_altaz(alt_radians, az_radians)
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
@@ -229,7 +228,7 @@ def slew(args):
         return drive_status
 
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.slew_radec(ra_radians, dec_radians)
 
 def track(args):
@@ -257,7 +256,7 @@ def track(args):
         return drive_status
 
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.track_radec(ra_radians, dec_radians)
 
 def offset(args):
@@ -283,7 +282,7 @@ def offset(args):
         return drive_status
 
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.offset_radec(offset_ra_radians, offset_dec_radians)
 
 def focus(args):
@@ -297,7 +296,7 @@ def focus(args):
                 return -1
 
             ping_teld()
-            with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+            with daemons.onemetre_telescope.connect(timeout=0) as teld:
                 return teld.telescope_focus(position)
 
         if args[0] == 'instrument':
@@ -315,18 +314,17 @@ def calibrate(args):
             return drive_status
 
         ping_teld()
-        with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+        with daemons.onemetre_telescope.connect(timeout=0) as teld:
             if args[0] == 'home':
                 return teld.find_homes()
-            else:
-                return teld.find_limits()
+            return teld.find_limits()
 
     print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
     return -1
 
 def guide(args):
     """Interact with the autoguider"""
-    if len(args) > 0:
+    if args:
         if args[0] == 'blue' or args[0] == 'red' or args[0] == 'resume':
             if args[0] != 'resume':
                 if len(args) < 2:
@@ -342,7 +340,7 @@ def guide(args):
                     return pipeline_status
 
             ping_teld()
-            with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+            with daemons.onemetre_telescope.connect(timeout=0) as teld:
                 tel_status = teld.start_guiding()
                 if tel_status != 31:
                     set_guide_camera(None)
@@ -354,7 +352,7 @@ def guide(args):
                     print('warning: failed to notify pipeline')
 
             ping_teld()
-            with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+            with daemons.onemetre_telescope.connect(timeout=0) as teld:
                 return teld.stop_guiding()
 
     print('usage: {} guide [blue|red|stop]'.format(SCRIPT_NAME))
@@ -363,7 +361,7 @@ def guide(args):
 def status():
     """Reports the current telescope status"""
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         data = teld.report_status()
 
     drive_status = drive_power_status()
@@ -426,19 +424,19 @@ def stop():
         print('warning: failed to notify pipeline')
 
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.stop()
 
 def initialize():
     """Enables the power and talon daemons"""
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.initialize()
 
 def shutdown():
     """Disables the talon daemons and power"""
     ping_teld()
-    with observatory.daemons.onemetre_telescope.connect(timeout=0) as teld:
+    with daemons.onemetre_telescope.connect(timeout=0) as teld:
         return teld.shutdown()
 
 def reboot():
@@ -449,7 +447,7 @@ def reboot():
 
 def ping_teld():
     """Check that teld is alive"""
-    with observatory.daemons.onemetre_telescope.connect(timeout=TEL_PING_TIMEOUT) as teld:
+    with daemons.onemetre_telescope.connect(timeout=TEL_PING_TIMEOUT) as teld:
         teld.ping()
 
 def cover_power_status():
@@ -463,7 +461,7 @@ def drive_power_status():
 def query_power_daemon(switch_name, disabled_code):
     """Checks specified PDU switch and returns an error code if disabled"""
     try:
-        with observatory.daemons.onemetre_power.connect() as powerd:
+        with daemons.onemetre_power.connect() as powerd:
             powered = powerd.value(switch_name)
             return 0 if powered else disabled_code
     except Pyro4.errors.CommunicationError:
@@ -472,7 +470,7 @@ def query_power_daemon(switch_name, disabled_code):
 def set_guide_camera(camera_id, background_tile_size=0, reference_frame=None):
     """Configures the reduction pipeline for autoguiding"""
     try:
-        with observatory.daemons.onemetre_pipeline.connect() as pipeline:
+        with daemons.onemetre_pipeline.connect() as pipeline:
             pipeline.set_guide_camera(camera_id, background_tile_size, reference_frame)
             return 0
     except Pyro4.errors.CommunicationError:

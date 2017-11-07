@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.4
 #
 # This file is part of teld.
 #
@@ -32,13 +32,14 @@ import math
 import os
 import struct
 import subprocess
-import sysv_ipc
 import threading
 import time
 import ephem
 import Pyro4
-import warwick.observatory as observatory
-from warwick.observatory import TryLock
+import sysv_ipc
+from warwick.observatory.common import (
+    daemons,
+    TryLock)
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = 'UNKNOWN'
@@ -412,7 +413,6 @@ class TelescopeDaemon:
                 return False
 
             stopped = False
-            complete = False
             while True:
                 self._telescope_focus_condition.wait(timeout)
                 stopped = self._force_stopped or self._status == TelescopeStatus.Disabled
@@ -506,7 +506,7 @@ class TelescopeDaemon:
 
             # Check hard limits (security system)
             try:
-                with observatory.daemons.onemetre_roomalert.connect() as roomalert:
+                with daemons.onemetre_roomalert.connect() as roomalert:
                     status = roomalert.last_measurement()
                     if 'security_system_safe' not in status or not status['security_system_safe']:
                         return CommandStatus.SecuritySystemTripped
@@ -515,7 +515,7 @@ class TelescopeDaemon:
 
             # Turn on CSIMC controller card power
             try:
-                with observatory.daemons.onemetre_power.connect() as power:
+                with daemons.onemetre_power.connect() as power:
                     if not power.switch('telescope_12v', True):
                         return CommandStatus.CannotCommunicateWithPowerDaemon
             except Pyro4.errors.CommunicationError:
@@ -534,7 +534,7 @@ class TelescopeDaemon:
             if self._status == TelescopeStatus.Disabled:
                 # Clean up after failed initialization
                 try:
-                    with observatory.daemons.onemetre_power.connect() as power:
+                    with daemons.onemetre_power.connect() as power:
                         if not power.switch('telescope_12v', False):
                             return CommandStatus.CannotCommunicateWithPowerDaemon
                 except Pyro4.errors.CommunicationError:
@@ -558,7 +558,7 @@ class TelescopeDaemon:
             # The main daemon thread will detect the cards going away
             # and clean up as required.
             try:
-                with observatory.daemons.onemetre_power.connect() as power:
+                with daemons.onemetre_power.connect() as power:
                     if not power.switch('telescope_12v', False):
                         return CommandStatus.CannotCommunicateWithPowerDaemon
             except Pyro4.errors.CommunicationError:
@@ -1031,5 +1031,4 @@ def shm_read_ushort(shm, offset):
     return struct.unpack_from('H', shm.read(2, offset))[0]
 
 if __name__ == '__main__':
-    observatory.daemons.onemetre_telescope.launch(TelescopeDaemon())
-
+    daemons.onemetre_telescope.launch(TelescopeDaemon())
