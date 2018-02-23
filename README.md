@@ -1,4 +1,4 @@
-## W1m data pipeline daemon [![Travis CI build status](https://travis-ci.org/warwick-one-metre/teld.svg?branch=master)](https://travis-ci.org/warwick-one-metre/teld)
+## W1m telescope daemon [![Travis CI build status](https://travis-ci.org/warwick-one-metre/teld.svg?branch=master)](https://travis-ci.org/warwick-one-metre/teld)
 
 Part of the observatory software for the Warwick one-meter telescope.
 
