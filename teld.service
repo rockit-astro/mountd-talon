@@ -8,9 +8,9 @@ After=network-online.target
 Restart=on-failure
 Type=simple
 #User=talon
-ExecStart=/usr/bin/env python3.4 -u /usr/bin/teld
-ExecStartPost=/usr/bin/env python3.4 -u /usr/bin/obslog info teld Started by systemd
-ExecStopPost=/usr/bin/env python3.4 -u /usr/bin/obslog info teld Stopped by systemd
+ExecStart=/usr/bin/env python3.6 -u /usr/bin/teld
+ExecStartPost=/usr/bin/env python3.6 -u /usr/bin/obslog info teld Started by systemd
+ExecStopPost=/usr/bin/env python3.6 -u /usr/bin/obslog info teld Stopped by systemd
 StandardOutput=syslog
 StandardError=syslog
 
