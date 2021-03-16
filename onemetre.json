@@ -1,0 +1,31 @@
+{
+  "daemon": "onemetre_telescope",
+  "log_name": "teld",
+  "control_machines": ["OneMetreDome", "OneMetreTCS"],
+  "security_system_daemon": "onemetre_roomalert",
+  "security_system_key": "security_system_safe",
+  "virtual": false,
+  "query_delay": 1,
+  "focus_tolerance": 0.005,
+  "initialization_timeout": 60,
+  "slew_timeout": 120,
+  "focus_timeout": 60,
+  "homing_timeout": 120,
+  "limit_timeout": 120,
+  "cover_timeout": 2.5,
+  "ping_timeout": 5,
+  "roof_open_timeout": 0,
+  "roof_close_timeout": 0,
+  "park_positions": {
+    "stow": {
+      "desc": "general purpose park protecting the mirror and instrument",
+      "alt": 35,
+      "az": 25
+    },
+    "zenith": {
+      "desc": "park at zenith for maintenance tasks",
+      "alt": 90,
+      "az": 0
+    }
+  }
+}

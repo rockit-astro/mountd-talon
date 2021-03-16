@@ -1,15 +1,15 @@
-Name:      onemetre-telescope-client
-Version:   2.1.1
+Name:      observatory-talon-client
+Version:   20210323
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
-Summary:   Telescope client for the Warwick one-metre telescope.
+Summary:   Telescope client for the Warwick one-metre and SuperWASP telescopes.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-Pyro4, python3-warwick-observatory-common
+Requires:  python3, python3-Pyro4, python3-warwick-observatory-common, python3-warwick-observatory-talon
 
 %description
-Part of the observatory software for the Warwick one-meter telescope.
+Part of the observatory software for the Warwick one-meter and SuperWASP telescopes.
 
 tel is a commandline utility for controlling the telescope.
 

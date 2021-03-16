@@ -1,0 +1,29 @@
+{
+  "daemon": "localhost_test",
+  "log_name": "superwasp_teld",
+  "control_machines": ["LocalHost"],
+  "virtual": false,
+  "query_delay": 1,
+  "focus_tolerance": 0.005,
+  "initialization_timeout": 60,
+  "slew_timeout": 120,
+  "focus_timeout": 60,
+  "homing_timeout": 120,
+  "limit_timeout": 120,
+  "cover_timeout": 2.5,
+  "ping_timeout": 5,
+  "roof_open_timeout": 60,
+  "roof_close_timeout": 120,
+  "park_positions": {
+    "stow": {
+      "desc": "general purpose park protecting the mirror and instrument",
+      "alt": 35,
+      "az": 25
+    },
+    "zenith": {
+      "desc": "park at zenith for maintenance tasks",
+      "alt": 90,
+      "az": 0
+    }
+  }
+}

@@ -4,25 +4,17 @@ _tel()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="status covers drive park slew track offset focus stop guide cal init kill reboot"
+    opts="status covers roof park slew track offset focus stop cal init kill"
 
     case "${prev}" in
-        drive)
-            opts="enable disable"
+        covers|roof)
+            opts="open close"
             ;;
-        focus)
-            opts="telescope instrument"
+        park)
+            opts=$(tel list-parks ${prev})
             ;;
         cal)
             opts="home limits"
-            ;;
-        guide)
-            opts="red blue stop pause resume"
-            ;;
-        start)
-            local IFS=$'\n'
-            COMPREPLY=($(compgen -o plusdirs -f -X '!*.fits' -- $cur))
-            return 0
             ;;
         *)
             ;;

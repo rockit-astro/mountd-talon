@@ -15,92 +15,42 @@
 # You should have received a copy of the GNU General Public License
 # along with teld.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Daemon process for managing the telescope"""
+"""Commandline client for managing the telescope"""
 
-# pylint: disable=invalid-name
-# pylint: disable=too-many-locals
-
-import math
+import glob
 import os
 import sys
-import time
 import Pyro4
-from warwick.observatory.common import daemons
-
-# This timeout is used for an initial ping before running the real command
-# The real commands may take much longer than this, so we can't apply the timeout there.
-TEL_PING_TIMEOUT = 5
+from astropy.coordinates import Angle, SkyCoord
+import astropy.units as u
+from warwick.observatory.talon import CommandStatus, TelState, CoverState, RoofState, Config
+from warwick.observatory.common import TFmt
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
-# Positions in degrees (alt, az)
-PARK_POSITIONS = {
-    'stow': (0.616, 0.405, 'general purpose park protecting the mirror and instrument'),
-    'zenith': (math.pi / 2, 0, 'park at zenith for maintenance tasks'),
-}
-
-# This should be kept in sync with the class in teld
-STATUS_CODES = {
-    # General error codes
-    1: 'error: command failed',
-    2: 'error: another command is already running',
-    5: 'error: telescope failed to communicate with power system daemon',
-    6: 'error: telescope failed to communicate with roomalert daemon',
-    7: 'error: hard limits (security system) have been tripped',
-
-    # Command-specific codes
-    10: 'error: telescope has not been initialized',
-    11: 'error: telescope has not been homed',
-    12: 'error: telescope is not tracking',
-    13: 'error: telescope is not guiding',
-    14: 'error: telescope has already been initialized',
-    15: 'error: telescope is tracking',
-    16: 'error: telescope is guiding',
-    20: 'error: requested coordinates outside HA limits',
-    21: 'error: requested coordinates outside Dec limits',
-    31: 'error: failed to load reference frame',
-
-    # tel specific codes
-    -100: 'error: terminated by user',
-    -101: 'error: unable to communicate with telescope daemon',
-    -102: 'error: unable to communicate with power system daemon',
-    -103: 'error: unable to communicate with data pipeline daemon',
-
-    -110: 'error: telescope drive power is disabled',
-    -111: 'error: telescope cover power is disabled'
-}
-
-FMT_GREEN = '\033[92m'
-FMT_RED = '\033[91m'
-FMT_BOLD = '\033[1m'
-FMT_CLEAR = '\033[0m'
-
-TELESCOPE_STATE_FORMATS = {
-    0: FMT_RED,
-    1: FMT_RED,
-    2: '',
-    3: FMT_GREEN,
-    4: FMT_GREEN
-}
-
-TELESCOPE_COVER_DESCRIPTIONS = {
-    'CV_ABSENT': '\033[1m\033[93mABSENT\033[0m',
-    'CV_IDLE': '\033[1mIDLE\033[0m',
-    'CV_OPENING': '\033[1m\033[91mOPENING\033[0m',
-    'CV_CLOSING': '\033[1m\033[91mCLOSING\033[0m',
-    'CV_OPEN': '\033[1m\033[92mOPEN\033[0m',
-    'CV_CLOSED': '\033[1m\033[91mCLOSED\033[0m'
-}
-
 sys.excepthook = Pyro4.util.excepthook
 
-def run_command(command):
-    """Prints the message associated with a status code and returns the code"""
+
+def run_command(command, args):
+    """Runs a daemon command, handling cancellation and error messages"""
+    if 'TELD_CONFIG_PATH' in os.environ:
+        config = Config(os.environ['TELD_CONFIG_PATH'])
+    else:
+        # Load the config file defined in the TELD_CONFIG_PATH environment variable or from the
+        # default system location (/etc/teld/). Exit with an error if zero or multiple are found.
+        files = glob.glob("/etc/teld/*.json")
+        if len(files) != 1:
+            print('error: failed to guess the default config file. ' +
+                  'Run as TELD_CONFIG_PATH=/path/to/config.json tel <command> [<args>]')
+            return 1
+
+        config = Config(files[0])
+
     try:
-        ret = command()
+        ret = command(config, args)
     except KeyboardInterrupt:
         # ctrl-c terminates the running command
-        ret = stop()
+        ret = stop(config, args)
 
         # Report successful stop
         if ret == 0:
@@ -109,56 +59,16 @@ def run_command(command):
         ret = -101
 
     # Print message associated with error codes, except for -1 (error handled locally)
-    if ret in STATUS_CODES:
-        print(STATUS_CODES[ret])
-    elif ret != -1 and ret != 0:
-        print('Returned unknown status code: {0}'.format(ret))
-    sys.exit(ret)
+    if ret not in (0, -1):
+        print(CommandStatus.message(ret))
+    return ret
 
-def sexagesimal(angle):
-    """Formats a decimal number in sexagesimal format"""
-    negative = angle < 0
-    angle = math.fabs(angle)
 
-    degrees = int(angle)
-    angle = (angle - degrees) * 60
-    minutes = int(angle)
-    seconds = (angle - minutes) * 60
-
-    if negative:
-        degrees *= -1
-
-    return '{:d}:{:02d}:{:05.2f}'.format(degrees, minutes, seconds)
-
-def parse_sexagesimal(string):
-    """Converts a sexagesimal string to decimal"""
-    parts = string.split(':')
-    if len(parts) != 3:
-        raise ValueError('Invalid input')
-
-    a = float(parts[0])
-    b = math.copysign(float(parts[1]), a)
-    c = math.copysign(float(parts[2]), a)
-
-    return a + b / 60 + c / 3600
-
-def parse_ra(ra_string):
-    """Converts a HH:MM:SS Dec string to radians"""
-    return parse_sexagesimal(ra_string) * math.pi / 12
-
-def parse_dec(dec_string):
-    """Converts a DD:MM:SS Dec string to radians"""
-    return parse_sexagesimal(dec_string) * math.pi / 180
-
-def operate_cover(args):
+def operate_cover(config, args):
     """Opens or closes the mirror covers"""
     if len(args) == 1 and (args[0] == 'open' or args[0] == 'close'):
-        cover_status = cover_power_status()
-        if cover_status != 0:
-            return cover_status
-
-        ping_teld()
-        with daemons.onemetre_telescope.connect(timeout=0) as teld:
+        ping_teld(config)
+        with config.daemon.connect(timeout=0) as teld:
             if args[0] == 'open':
                 return teld.open_covers()
             return teld.close_covers()
@@ -166,155 +76,140 @@ def operate_cover(args):
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
     return -1
 
-def drive_power(args):
-    """Enable or disable the telescope drive power"""
-    if len(args) == 1 and (args[0] == 'enable' or args[0] == 'disable'):
-        try:
-            enable = args[0] == 'enable'
-            with daemons.onemetre_power.connect() as powerd:
-                success = powerd.switch('telescope_80v', enable)
-                return 0 if success else 1
-        except Pyro4.errors.CommunicationError:
-            return -102
 
-    print('usage: {} drive [enable|disable]'.format(SCRIPT_NAME))
+def operate_roof(config, args):
+    """Opens or closes the roof"""
+    if len(args) == 1 and (args[0] == 'open' or args[0] == 'close'):
+        ping_teld(config)
+        with config.daemon.connect(timeout=0) as teld:
+            if args[0] == 'open':
+                return teld.open_roof()
+            return teld.close_roof()
+
+    print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
     return -1
 
-def park(args):
+
+def park(config, args):
     """Slews the telescope to a named park position"""
     if len(args) == 1:
-        if args[0] not in PARK_POSITIONS:
+        if args[0] not in config.park_positions:
             print('error: unknown park position \'' + args[0] + '\'')
             return -1
 
-        drive_status = drive_power_status()
-        if drive_status != 0:
-            return drive_status
-
-        alt_radians, az_radians, _ = PARK_POSITIONS.get(args[0])
-        ping_teld()
-        with daemons.onemetre_telescope.connect(timeout=0) as teld:
-            return teld.slew_altaz(alt_radians, az_radians)
+        ping_teld(config)
+        with config.daemon.connect(timeout=0) as teld:
+            pos = config.park_positions.get(args[0])
+            return teld.slew_altaz(pos['alt'], pos['az'])
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
     print()
-    for p in PARK_POSITIONS:
-        print('   {:6s}    {}'.format(p, PARK_POSITIONS[p][2]))
+    for p in config.park_positions:
+        print('   {:6s}    {}'.format(p, config.park_positions[p]['desc']))
     print()
     return -1
 
-def slew(args):
+
+def slew(config, args):
     """Slews the telescope to a specified RA,Dec position"""
     if len(args) != 2:
         print('usage: {} slew <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
         return -1
 
     try:
-        ra_radians = parse_ra(args[0])
-    except ValueError:
-        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
-        return -1
-
-    try:
-        dec_radians = parse_dec(args[1])
-    except ValueError:
-        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        coord = SkyCoord(ra=args[0], dec=args[1], unit=(u.hourangle, u.deg))
+    except ValueError as e:
+        print('error: ' + str(e))
         return -1
 
     # TODO: Check against limits
 
-    drive_status = drive_power_status()
-    if drive_status != 0:
-        return drive_status
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.slew_radec(coord.ra.to_value(u.deg), coord.dec.to_value(u.deg))
 
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
-        return teld.slew_radec(ra_radians, dec_radians)
 
-def track(args):
+def horizon(config, args):
+    """Slews the telescope to a specified Alt,Az position"""
+    if len(args) != 2:
+        print('usage: {} horizon <DD:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
+        return -1
+
+    try:
+        coord = SkyCoord(alt=args[0], az=args[1], unit=u.deg, frame='altaz')
+    except ValueError as e:
+        print('error: ' + str(e))
+        return -1
+
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.slew_altaz(coord.alt.to_value(u.deg), coord.az.to_value(u.deg))
+
+
+def track(config, args):
     """Slews the telescope to a specified RA,Dec position and begins tracking"""
     if len(args) != 2:
         print('usage: {} track <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
         return -1
 
     try:
-        ra_radians = parse_ra(args[0])
-    except ValueError:
-        print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
-        return -1
-
-    try:
-        dec_radians = parse_dec(args[1])
-    except ValueError:
-        print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
+        coord = SkyCoord(ra=args[0], dec=args[1], unit=(u.hourangle, u.deg))
+    except ValueError as e:
+        print('error: ' + str(e))
         return -1
 
     # TODO: check against limits
 
-    drive_status = drive_power_status()
-    if drive_status != 0:
-        return drive_status
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.track_radec(coord.ra.to_value(u.deg), coord.dec.to_value(u.deg))
 
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
-        return teld.track_radec(ra_radians, dec_radians)
 
-def offset(args):
+def offset(config, args):
     """Offsets the telescope by a specified delta RA,Dec"""
     if len(args) != 2:
         print('usage: {} offset <HH:MM:SS.S> <DD:MM:SS.S>'.format(SCRIPT_NAME))
         return -1
 
     try:
-        offset_ra_radians = parse_ra(args[0])
+        offset_ra = Angle(args[0], unit=u.hourangle)
     except ValueError:
         print('error: failed to parse \'' + args[0] + '\' as a HH:MM:SS.S right ascension.')
         return -1
 
     try:
-        offset_dec_radians = parse_dec(args[1])
+        offset_dec = Angle(args[1], unit=u.deg)
     except ValueError:
         print('error: failed to parse \'' + args[1] + '\' as a DD:MM:SS.S declination.')
         return -1
 
-    drive_status = drive_power_status()
-    if drive_status != 0:
-        return drive_status
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.offset_radec(offset_ra.to_value(u.deg), offset_dec.to_value(u.deg))
 
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
-        return teld.offset_radec(offset_ra_radians, offset_dec_radians)
 
-def focus(args):
+def focus(config, args):
     """Sets the telescope or instrument focus positions"""
-    if len(args) == 2:
-        if args[0] == 'telescope':
-            try:
-                position = float(args[1])
-            except ValueError:
-                print('error: failed to parse \'' + args[1] + '\' as a focus position.')
-                return -1
-
-            ping_teld()
-            with daemons.onemetre_telescope.connect(timeout=0) as teld:
-                return teld.telescope_focus(position)
-
-        if args[0] == 'instrument':
-            print('error: instrument focus is not implemented yet')
+    if len(args) == 1:
+        try:
+            position = float(args[0])
+        except ValueError:
+            print('error: failed to parse \'' + args[1] + '\' as a focus position.')
             return -1
 
-    print('usage: {} focus [telescope|instrument] <position>'.format(SCRIPT_NAME))
+        ping_teld(config)
+        with config.daemon.connect(timeout=0) as teld:
+            return teld.telescope_focus(position)
+
+    print('usage: {} focus <position>'.format(SCRIPT_NAME))
     return -1
 
-def calibrate(args):
+
+def calibrate(config, args):
     """Performs the home and limit calibrations"""
     if len(args) == 1 and (args[0] == 'home' or args[0] == 'limits'):
-        drive_status = drive_power_status()
-        if drive_status != 0:
-            return drive_status
-
-        ping_teld()
-        with daemons.onemetre_telescope.connect(timeout=0) as teld:
+        ping_teld(config)
+        with config.daemon.connect(timeout=0) as teld:
             if args[0] == 'home':
                 return teld.find_homes()
             return teld.find_limits()
@@ -322,159 +217,90 @@ def calibrate(args):
     print('usage: {} cal [home|limits]'.format(SCRIPT_NAME))
     return -1
 
-def guide(args):
-    """Interact with the autoguider"""
-    if args:
-        if args[0] == 'blue' or args[0] == 'red' or args[0] == 'resume':
-            if args[0] != 'resume':
-                if len(args) < 2:
-                    print('usage: {} guide {} <background tile size> [frame path]'.format(
-                        SCRIPT_NAME, args[0]))
-                    return -1
 
-                tile_size = int(args[1])
-                camera = 'BLUE' if args[0] == 'blue' else 'RED'
-                frame = args[2] if len(args) > 2 else None
-                pipeline_status = set_guide_camera(camera, tile_size, frame)
-                if pipeline_status != 0:
-                    return pipeline_status
-
-            ping_teld()
-            with daemons.onemetre_telescope.connect(timeout=0) as teld:
-                tel_status = teld.start_guiding()
-                if tel_status != 31:
-                    set_guide_camera(None)
-                return tel_status
-        elif args[0] == 'stop' or args[0] == 'pause':
-            if args[0] != 'pause':
-                pipeline_status = set_guide_camera(None)
-                if pipeline_status != 0:
-                    print('warning: failed to notify pipeline')
-
-            ping_teld()
-            with daemons.onemetre_telescope.connect(timeout=0) as teld:
-                return teld.stop_guiding()
-
-    print('usage: {} guide [blue|red|stop]'.format(SCRIPT_NAME))
-    return -1
-
-def status():
+def status(config, _):
     """Reports the current telescope status"""
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
         data = teld.report_status()
 
-    drive_status = drive_power_status()
-    drive_desc = '\033[1m\033[92mENABLED\033[0m'
-    if drive_status == -110:
-        drive_desc = '\033[1m\033[91mDISABLED\033[0m'
-    elif drive_status == -102:
-        drive_desc = '\033[1m\033[93mUNKNOWN\033[0m'
-
-    state_desc = FMT_BOLD
-    if data['state'] in TELESCOPE_STATE_FORMATS:
-        state_desc += TELESCOPE_STATE_FORMATS[data['state']]
-    state_desc += data['state_label'] + FMT_CLEAR
+    print('   Telescope is {}'.format(TelState.label(data['state'], formatting=True)))
 
     # Telescope is disabled
     if data['state'] == 0:
-        print('   Telescope is {}'.format(state_desc))
-        print('   Telescope drive power {}'.format(drive_desc))
         return 0
 
-    #cover_desc = '\033[1m\033[93mUNKNOWN\033[0m'
-    #if data['cover_state'] in TELESCOPE_COVER_DESCRIPTIONS:
-    #    cover_desc = TELESCOPE_COVER_DESCRIPTIONS[data['cover_state']]
+    if data['roof_state'] != RoofState.Absent:
+        print('   Roof is {}'.format(RoofState.label(data['roof_state'], formatting=True)))
 
-    ra_desc = sexagesimal(float(data['ra']) * 12 / math.pi)
-    dec_desc = sexagesimal(float(data['dec']) * 180 / math.pi)
+    if data['cover_state'] != CoverState.Absent:
+        print('   Covers are {}'.format(CoverState.label(data['cover_state'], formatting=True)))
 
-    alt_desc = sexagesimal(float(data['alt']) * 180 / math.pi)
-    az_desc = sexagesimal(float(data['az']) * 180 / math.pi)
-    lst_desc = sexagesimal(float(data['lst']) * 12 / math.pi)
+    if data['axes_homed']:
+        coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit=u.deg)
+        ra_desc = coords.ra.to(u.hourangle).to_string(sep=':', precision=2)
+        dec_desc = coords.dec.to(u.deg).to_string(sep=':', precision=2)
 
-    ra_offset_desc = ''
-    ra_offset = float(data['offset_ra'])
-    if ra_offset != 0:
-        ra_offset_coords = sexagesimal(ra_offset * 12 / math.pi)
-        ra_offset_desc = ' with offset \033[1m' + ra_offset_coords + '\033[0m'
+        altaz = SkyCoord(alt=data['alt'], az=data['az'], unit=u.deg, frame='altaz')
+        alt_desc = altaz.alt.to(u.deg).to_string(sep=':', precision=2)
+        az_desc = altaz.az.to_string(sep=':', precision=2)
 
-    dec_offset_desc = ''
-    dec_offset = float(data['offset_dec'])
-    if dec_offset != 0:
-        dec_offset_coords = sexagesimal(dec_offset * 180 / math.pi)
-        dec_offset_desc = ' with offset \033[1m' + dec_offset_coords + '\033[0m'
+        ra_offset_desc = ''
+        ra_offset = Angle(data['offset_ra'], unit=u.deg).to(u.hourangle)
+        if ra_offset != 0:
+            ra_offset_desc = ' with offset ' + TFmt.Bold + ra_offset.to_string(sep=':', precision=2) + TFmt.Clear
 
-    print('   Telescope is {} (Talon state {})'.format(state_desc, data['pointing_state']))
-    print('   Telescope drive power {}'.format(drive_desc))
-    #print('   Covers are {} (Talon state {}).'.format(cover_desc, data['cover_state']))
-    print('   RA is \033[1m' + ra_desc + '\033[0m' + ra_offset_desc)
-    print('   Dec is \033[1m' + dec_desc + '\033[0m' + dec_offset_desc)
-    print('   Altitude is \033[1m' + alt_desc + '\033[0m')
-    print('   Azimuth is \033[1m' + az_desc + '\033[0m')
-    print('   Local sidereal time is \033[1m' + lst_desc + '\033[0m')
-    print('   Telescope focus is \033[1m{:.2f}\033[0m um'.format(data['telescope_focus_um']))
+        dec_offset_desc = ''
+        dec_offset = Angle(data['offset_dec'], unit=u.deg)
+        if dec_offset != 0:
+            dec_offset_desc = ' with offset ' + TFmt.Bold + dec_offset.to_string(sep=':', precision=2) + TFmt.Clear
+
+        print('   RA is ' + TFmt.Bold + ra_desc + TFmt.Clear + ra_offset_desc)
+        print('   Dec is ' + TFmt.Bold + dec_desc + TFmt.Clear + dec_offset_desc)
+        print('   Altitude is ' + TFmt.Bold + alt_desc + TFmt.Clear)
+        print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
+        print('   Telescope focus is ' + TFmt.Bold + '{:.2f}'.format(data['telescope_focus_um']) + TFmt.Clear + 'um')
+    else:
+        print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
+
+    lst_desc = Angle(data['lst'], unit=u.deg).to(u.hourangle).to_string(sep=':', precision=2)
+    print('   Local sidereal time is ' + TFmt.Bold + lst_desc + TFmt.Clear)
 
     return 0
 
-def stop():
-    """Stops any active telescope movement"""
-    pipeline_status = set_guide_camera(None)
-    if pipeline_status != 0:
-        print('warning: failed to notify pipeline')
 
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
+def stop(config, _):
+    """Stops any active telescope movement"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
         return teld.stop()
 
-def initialize():
-    """Enables the power and talon daemons"""
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
+
+def initialize(config, _):
+    """Enables the talon daemon"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
         return teld.initialize()
 
-def shutdown():
-    """Disables the talon daemons and power"""
-    ping_teld()
-    with daemons.onemetre_telescope.connect(timeout=0) as teld:
+
+def shutdown(config, _):
+    """Disables the talon daemon"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
         return teld.shutdown()
 
-def reboot():
-    """Reboots the talon daemons and power"""
-    shutdown()
-    time.sleep(5)
-    return initialize()
 
-def ping_teld():
+def list_parks(config, args):
+    """List available park positions for bash command completion"""
+    print(' '.join(sorted(config.park_positions.keys())))
+    return 0
+
+
+def ping_teld(config):
     """Check that teld is alive"""
-    with daemons.onemetre_telescope.connect(timeout=TEL_PING_TIMEOUT) as teld:
+    with config.daemon.connect(timeout=config.ping_timeout) as teld:
         teld.ping()
 
-def cover_power_status():
-    """Returns 0 if cover power is enabled or an error code"""
-    return query_power_daemon('telescope_covers', -111)
-
-def drive_power_status():
-    """Returns 0 if drive power is enabled or an error code"""
-    return query_power_daemon('telescope_80v', -110)
-
-def query_power_daemon(switch_name, disabled_code):
-    """Checks specified PDU switch and returns an error code if disabled"""
-    try:
-        with daemons.onemetre_power.connect() as powerd:
-            powered = powerd.value(switch_name)
-            return 0 if powered else disabled_code
-    except Pyro4.errors.CommunicationError:
-        return -102
-
-def set_guide_camera(camera_id, background_tile_size=0, reference_frame=None):
-    """Configures the reduction pipeline for autoguiding"""
-    try:
-        with daemons.onemetre_pipeline.connect() as pipeline:
-            pipeline.set_guide_camera(camera_id, background_tile_size, reference_frame)
-            return 0
-    except Pyro4.errors.CommunicationError:
-        return -103
 
 def print_usage():
     """Prints the utility help"""
@@ -482,59 +308,45 @@ def print_usage():
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
-    #print('   covers    open or close the mirror covers')
-    print('   drive     enable or disable the telescope drive power')
+    print('   covers    open or close the mirror covers')
+    print('   roof      open or close the roof')
     print('   park      park the telescope in a named position')
     print()
     print('observing commands:')
     print('   slew      slew the telescope to a given RA, Dec')
+    print('   horizon   slew the telescope to a given Alt, Az')
     print('   track     slew the telescope to a given RA, Dec and track the target')
     print('   offset    offset the telescope by a given RA, Dec')
-    print('   focus     adjust the telescope or instrument focus')
+
+    print('   focus     adjust the telescope focus')
     print('   stop      immediately stop any telescope movement')
-    print('   guide     start, update, or stop the autoguider')
     print()
     print('engineering commands:')
     print('   cal       perform telescope home or limit calibrations')
-    print('   init      power on the telescope and start low-level hardware daemons')
-    print('   kill      kill low-level hardware daemons and power off the telescope')
-    print('   reboot    kill and reinitialize the telescope and low-level daemons')
     print()
 
     return 0
 
+
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        sys.exit(print_usage())
+    commands = {
+        'covers': operate_cover,
+        'roof': operate_roof,
+        'park': park,
+        'slew': slew,
+        'horizon': horizon,
+        'track': track,
+        'offset': offset,
+        'focus': focus,
+        'cal': calibrate,
+        'status': status,
+        'stop': stop,
+        'init': initialize,
+        'kill': shutdown,
+        'list-parks': list_parks
+    }
 
-    #if sys.argv[1] == 'covers':
-    #    run_command(lambda: operate_cover(sys.argv[2:]))
-    if sys.argv[1] == 'drive':
-        run_command(lambda: drive_power(sys.argv[2:]))
-    if sys.argv[1] == 'park':
-        run_command(lambda: park(sys.argv[2:]))
-    if sys.argv[1] == 'slew':
-        run_command(lambda: slew(sys.argv[2:]))
-    if sys.argv[1] == 'track':
-        run_command(lambda: track(sys.argv[2:]))
-    if sys.argv[1] == 'offset':
-        run_command(lambda: offset(sys.argv[2:]))
-    if sys.argv[1] == 'focus':
-        run_command(lambda: focus(sys.argv[2:]))
-    if sys.argv[1] == 'cal':
-        run_command(lambda: calibrate(sys.argv[2:]))
-    if sys.argv[1] == 'guide':
-        run_command(lambda: guide(sys.argv[2:]))
-    if sys.argv[1] == 'status':
-        run_command(status)
-    if sys.argv[1] == 'stop':
-        run_command(stop)
-    if sys.argv[1] == 'init':
-        run_command(initialize)
-    if sys.argv[1] == 'kill':
-        run_command(shutdown)
-    if sys.argv[1] == 'reboot':
-        run_command(reboot)
+    if len(sys.argv) >= 2 and sys.argv[1] in commands:
+        sys.exit(run_command(commands[sys.argv[1]], sys.argv[2:]))
 
-    # Command not found
     sys.exit(print_usage())
