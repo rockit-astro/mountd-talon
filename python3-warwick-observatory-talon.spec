@@ -1,5 +1,5 @@
 Name:      python3-warwick-observatory-talon
-Version:   20210323
+Version:   20210325
 Release:   0
 License:   GPL3
 Summary:   Common code for the Warwick one-metre and SuperWASP talon daemon

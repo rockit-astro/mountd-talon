@@ -1,5 +1,5 @@
 Name:      onemetre-talon-server
-Version:   20210323
+Version:   20210325
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the Warwick one-metre telescope.

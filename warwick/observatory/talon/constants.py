@@ -26,6 +26,7 @@ class CommandStatus:
     Failed = 1
     Blocked = 2
 
+    InvalidControlIP = 5
     CannotCommunicateWithSecuritySystem = 6
     SecuritySystemTripped = 7
 
@@ -42,6 +43,7 @@ class CommandStatus:
         # General error codes
         1: 'error: command failed',
         2: 'error: another command is already running',
+        5: 'error: command not accepted from this IP',
         6: 'error: telescope failed to communicate with security system daemon',
         7: 'error: hard limits (security system) have been tripped',
 
