@@ -1,5 +1,5 @@
 Name:      superwasp-talon-server
-Version:   20210325
+Version:   20210501
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the SuperWASP telescope.

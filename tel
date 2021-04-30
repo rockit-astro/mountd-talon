@@ -255,10 +255,15 @@ def status(config, _):
         if dec_offset != 0:
             dec_offset_desc = ' with offset ' + TFmt.Bold + dec_offset.to_string(sep=':', precision=2) + TFmt.Clear
 
+        moon_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['moon_separation']) + TFmt.Clear
+        sun_desc = TFmt.Bold + '{:.0f}\u00B0'.format(data['sun_separation']) + TFmt.Clear
+
         print('   RA is ' + TFmt.Bold + ra_desc + TFmt.Clear + ra_offset_desc)
         print('   Dec is ' + TFmt.Bold + dec_desc + TFmt.Clear + dec_offset_desc)
         print('   Altitude is ' + TFmt.Bold + alt_desc + TFmt.Clear)
         print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
+        print('   Moon separation is ' + moon_desc)
+        print('   Sun separation is ' + sun_desc)
         print('   Telescope focus is ' + TFmt.Bold + '{:.2f}'.format(data['telescope_focus_um']) + TFmt.Clear + 'um')
     else:
         print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
