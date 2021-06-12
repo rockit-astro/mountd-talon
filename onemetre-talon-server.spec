@@ -1,13 +1,12 @@
 Name:      onemetre-talon-server
-Version:   20210501
+Version:   20210612
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the Warwick one-metre telescope.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-astropy, python3-Pyro4, python3-sysv_ipc, python3-warwick-observatory-common, python3-warwick-observatory-talon
-Requires:  observatory-log-client, %{?systemd_requires}
+Requires:  python3, python3-astropy, python3-Pyro4, python3-sysv_ipc, python3-warwick-observatory-common, python3-warwick-observatory-talon, %{?systemd_requires}
 Requires:  onemetre-talon
 
 %description
