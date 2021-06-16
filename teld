@@ -259,9 +259,10 @@ class TelescopeDaemon:
 
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
-        if not fifo_write('Tel.in', 'xdelta(0,0)'):
-            log.error(self._config.log_name, 'Failed to write to Tel.in')
-            return False
+        if self._config.has_xdelta:
+            if not fifo_write('Tel.in', 'xdelta(0,0)'):
+                log.error(self._config.log_name, 'Failed to write to Tel.in')
+                return False
 
         self._offset_ra = 0 * u.deg
         self._offset_dec = 0 * u.deg
@@ -695,22 +696,26 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotHomed
 
             if self._pointing_state == TelState.Tracking:
-                # When tracking we must use the xdelta offset to directly
-                # offset at the motor controller
-                offset_ra = self._offset_ra + ra_delta_deg * u.deg
-                offset_dec = self._offset_dec + dec_delta_deg * u.deg
+                if self._config.has_xdelta:
+                    # When tracking we must use the xdelta offset to directly
+                    # offset at the motor controller
+                    offset_ra = self._offset_ra + ra_delta_deg * u.deg
+                    offset_dec = self._offset_dec + dec_delta_deg * u.deg
 
-                # xdelta expects angles in degrees
-                fifo_command = 'xdelta({},{})'.format(
-                    offset_ra.to_value(u.deg),
-                    offset_dec.to_value(u.deg))
+                    # xdelta expects angles in degrees
+                    fifo_command = 'xdelta({},{})'.format(
+                        offset_ra.to_value(u.deg),
+                        offset_dec.to_value(u.deg))
 
-                if not fifo_write('Tel.in', fifo_command):
-                    log.error(self._config.log_name, 'Failed to write to Tel.in')
+                    if not fifo_write('Tel.in', fifo_command):
+                        log.error(self._config.log_name, 'Failed to write to Tel.in')
+                        return CommandStatus.Failed
+
+                    self._offset_ra = offset_ra
+                    self._offset_dec = offset_dec
+                else:
+                    # TODO: Upgrade SuperWASP CSIMC cards or find another software approach
                     return CommandStatus.Failed
-
-                self._offset_ra = offset_ra
-                self._offset_dec = offset_dec
             elif self._pointing_state == TelState.Stopped:
                 # Otherwise just slew to the updated position
                 with self._talon_shm_lock:

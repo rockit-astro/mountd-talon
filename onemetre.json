@@ -19,6 +19,7 @@
   "has_roof": false,
   "has_covers": true,
   "has_focus": true,
+  "has_xdelta": true,
   "park_positions": {
     "stow": {
       "desc": "general purpose park protecting the mirror and instrument",

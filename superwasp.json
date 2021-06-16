@@ -17,6 +17,7 @@
   "has_roof": true,
   "has_covers": false,
   "has_focus": false,
+  "has_xdelta": false,
   "park_positions": {
     "zenith": {
       "desc": "park at zenith for maintenance tasks",

@@ -34,6 +34,7 @@ A configuration file is specified when launching the server, and the `tel` front
   "has_roof": false, # Is talon's telescoped configured with the SuperWASP roof controller interface?
   "has_covers": true, # Is talon's telescoped configured with mirror covers?
   "has_focus": true, # Is talon's telescoped configured with a focus axis?
+  "has_xdelta": true, # Is talon's telescoped configured for xdelta offsets?
   "park_positions": {
     "stow": { # Positions that can be used with 'tel park'.
       "desc": "general purpose park protecting the mirror and instrument", # Description reported by 'tel park'.

@@ -30,7 +30,7 @@ CONFIG_SCHEMA = {
         'query_delay', 'initialization_timeout', 'slew_timeout', 'focus_timeout',
         'homing_timeout', 'limit_timeout', 'cover_timeout', 'roof_open_timeout',
         'roof_close_timeout', 'ping_timeout', 'park_positions',
-        'has_roof', 'has_covers', 'has_focus'
+        'has_roof', 'has_covers', 'has_focus', 'has_xdelta'
     ],
     'properties': {
         'daemon': {
@@ -101,6 +101,9 @@ CONFIG_SCHEMA = {
             'type': 'boolean',
         },
         'has_focus': {
+            'type': 'boolean',
+        },
+        'has_xdelta': {
             'type': 'boolean',
         },
         'park_positions': {
@@ -229,6 +232,7 @@ class Config:
         self.has_roof = config_json['has_roof']
         self.has_covers = config_json['has_covers']
         self.has_focus = config_json['has_focus']
+        self.has_xdelta = config_json['has_xdelta']
         self.park_positions = config_json['park_positions']
 
         self.security_system_daemon = None
