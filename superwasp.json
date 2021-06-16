@@ -14,12 +14,10 @@
   "ping_timeout": 5,
   "roof_open_timeout": 60,
   "roof_close_timeout": 120,
+  "has_roof": true,
+  "has_covers": false,
+  "has_focus": false,
   "park_positions": {
-    "stow": {
-      "desc": "general purpose park protecting the mirror and instrument",
-      "alt": 35,
-      "az": 25
-    },
     "zenith": {
       "desc": "park at zenith for maintenance tasks",
       "alt": 90,

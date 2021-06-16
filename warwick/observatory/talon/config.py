@@ -29,7 +29,8 @@ CONFIG_SCHEMA = {
         'daemon', 'log_name', 'control_machines', 'virtual', 'focus_tolerance',
         'query_delay', 'initialization_timeout', 'slew_timeout', 'focus_timeout',
         'homing_timeout', 'limit_timeout', 'cover_timeout', 'roof_open_timeout',
-        'roof_close_timeout', 'ping_timeout', 'park_positions'
+        'roof_close_timeout', 'ping_timeout', 'park_positions',
+        'has_roof', 'has_covers', 'has_focus'
     ],
     'properties': {
         'daemon': {
@@ -92,6 +93,15 @@ CONFIG_SCHEMA = {
         'ping_timeout': {
             'type': 'number',
             'min': 0,
+        },
+        'has_roof': {
+            'type': 'boolean',
+        },
+        'has_covers': {
+            'type': 'boolean',
+        },
+        'has_focus': {
+            'type': 'boolean',
         },
         'park_positions': {
             'type': 'object',
@@ -215,6 +225,10 @@ class Config:
         self.roof_open_timeout = config_json['roof_open_timeout']
         self.roof_close_timeout = config_json['roof_close_timeout']
         self.ping_timeout = config_json['ping_timeout']
+
+        self.has_roof = config_json['has_roof']
+        self.has_covers = config_json['has_covers']
+        self.has_focus = config_json['has_focus']
         self.park_positions = config_json['park_positions']
 
         self.security_system_daemon = None

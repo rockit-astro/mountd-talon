@@ -86,7 +86,7 @@ def operate_roof(config, args):
                 return teld.open_roof()
             return teld.close_roof()
 
-    print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
+    print('usage: {} roof [open|close]'.format(SCRIPT_NAME))
     return -1
 
 
@@ -230,10 +230,10 @@ def status(config, _):
     if data['state'] == 0:
         return 0
 
-    if data['roof_state'] != RoofState.Absent:
+    if config.has_roof:
         print('   Roof is {}'.format(RoofState.label(data['roof_state'], formatting=True)))
 
-    if data['cover_state'] != CoverState.Absent:
+    if config.has_covers:
         print('   Covers are {}'.format(CoverState.label(data['cover_state'], formatting=True)))
 
     if data['axes_homed']:
@@ -264,7 +264,8 @@ def status(config, _):
         print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
         print('   Moon separation is ' + moon_desc)
         print('   Sun separation is ' + sun_desc)
-        print('   Telescope focus is ' + TFmt.Bold + '{:.2f}'.format(data['telescope_focus_um']) + TFmt.Clear + 'um')
+        if config.has_focus:
+            print('   Telescope focus is ' + TFmt.Bold + '{:.2f}'.format(data['telescope_focus_um']) + TFmt.Clear + 'um')
     else:
         print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
 
@@ -295,7 +296,7 @@ def shutdown(config, _):
         return teld.shutdown()
 
 
-def list_parks(config, args):
+def list_parks(config, _):
     """List available park positions for bash command completion"""
     print(' '.join(sorted(config.park_positions.keys())))
     return 0

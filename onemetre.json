@@ -16,6 +16,9 @@
   "ping_timeout": 5,
   "roof_open_timeout": 0,
   "roof_close_timeout": 0,
+  "has_roof": false,
+  "has_covers": true,
+  "has_focus": true,
   "park_positions": {
     "stow": {
       "desc": "general purpose park protecting the mirror and instrument",

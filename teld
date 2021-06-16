@@ -734,6 +734,9 @@ class TelescopeDaemon:
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
+        if not self._config.has_focus:
+            return CommandStatus.Failed
+
         with TryLock(self._command_lock) as success:
             if not success:
                 return CommandStatus.Blocked
@@ -771,6 +774,9 @@ class TelescopeDaemon:
         """Open or close the mirror covers"""
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
+
+        if not self._config.has_covers:
+            return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
             if not success:
@@ -826,6 +832,9 @@ class TelescopeDaemon:
         """Open or close the roof"""
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
+
+        if not self._config.has_roof:
+            return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
             if not success:
