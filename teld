@@ -34,14 +34,11 @@ import Pyro4
 from warwick.observatory.common import log, TryLock
 from warwick.observatory.common.helpers import pyro_client_matches
 from warwick.observatory.talon import (
-    CommandStatus, TelState, FocusState, CoverState, RoofState, Config,
-    ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
+    CommandStatus, TelState, FocusState, CoverState, RoofState, RoofHeartbeatState,
+    Config, ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
 
 # Set automatically when generating RPM package
 SOFTWARE_VERSION = "UNKNOWN"
-
-FIFO_PATH = '/usr/local/telescope/comm/'
-FIFO_NAMES = ['Tel.in', 'Cover.in', 'Focus.in']
 
 
 class TelescopeDaemon:
@@ -85,6 +82,8 @@ class TelescopeDaemon:
 
         self._last_roof_state = RoofState.Absent
         self._roof_state = RoofState.Absent
+        self._roof_heartbeat_state = RoofHeartbeatState.Disabled
+        self._roof_heartbeat_remaining = 0
 
         self._last_telescope_focus_state = FocusState.Absent
         self._telescope_focus_state = FocusState.Absent
@@ -130,11 +129,18 @@ class TelescopeDaemon:
                     self._pointing_state = pointing_state
                     self._pointing_idx = shm_read_int(self._talon_shm, ShmOffsets.TelStateIdx)
 
-                    self._last_cover_state = self._cover_state
-                    self._cover_state = shm_read_int(self._talon_shm, ShmOffsets.CoverState)
-
-                    self._last_roof_state = self._roof_state
-                    self._roof_state = shm_read_int(self._talon_shm, ShmOffsets.RoofState)
+                    if self._config.is_superwasp:
+                        self._last_roof_state = self._roof_state
+                        self._roof_state = shm_read_int(self._talon_shm, ShmOffsets.RoofState)
+                        self._roof_heartbeat_state = shm_read_int(self._talon_shm, ShmOffsets.RoofHeartbeatState)
+                        self._roof_heartbeat_remaining = shm_read_int(self._talon_shm, ShmOffsets.RoofHeartbeatRemaining)
+                        self._last_cover_state = self._cover_state = CoverState.Absent
+                    else:
+                        self._last_cover_state = self._cover_state
+                        self._cover_state = shm_read_int(self._talon_shm, ShmOffsets.CoverState)
+                        self._last_roof_state = self._roof_state = RoofState.Absent
+                        self._roof_heartbeat_state = RoofHeartbeatState.Disabled
+                        self._roof_heartbeat_remaining = 0
 
                     self._current_ra_j2000 = shm_read_double(self._talon_shm, ShmOffsets.RAJ2000) * u.rad
                     self._current_dec_j2000 = shm_read_double(self._talon_shm, ShmOffsets.DecJ2000) * u.rad
@@ -259,10 +265,14 @@ class TelescopeDaemon:
 
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
-        if self._config.has_xdelta:
-            if not fifo_write('Tel.in', 'xdelta(0,0)'):
-                log.error(self._config.log_name, 'Failed to write to Tel.in')
-                return False
+        if self._config.is_superwasp:
+            fifo_command = 'Offset 0,0'
+        else:
+            fifo_command = 'xdelta(0,0)'
+
+        if not fifo_write('Tel.in', fifo_command):
+            log.error(self._config.log_name, 'Failed to write to Tel.in')
+            return False
 
         self._offset_ra = 0 * u.deg
         self._offset_dec = 0 * u.deg
@@ -334,12 +344,22 @@ class TelescopeDaemon:
         if self._pointing_state != TelState.Absent:
             data.update({
                 'axes_homed': self._axes_homed,
-                'cover_state': self._cover_state,
-                'roof_state': self._roof_state,
-                'roof_state_label': RoofState.label(self._roof_state),
-                'telescope_focus_state': self._telescope_focus_state,
                 'lst': self._current_lst.to_value(u.deg),
             })
+
+            if self._config.is_superwasp:
+                data.update({
+                    'roof_state': self._roof_state,
+                    'roof_state_label': RoofState.label(self._roof_state),
+                    'roof_heartbeat_state': self._roof_heartbeat_state,
+                    'roof_heartbeat_state_label': RoofHeartbeatState.label(self._roof_heartbeat_state),
+                    'roof_hearbeat_remaining': self._roof_heartbeat_remaining
+                })
+            else:
+                data.update({
+                    'cover_state': self._cover_state,
+                    'telescope_focus_state': self._telescope_focus_state
+                })
 
             if self._axes_homed:
                 timenow = Time(Time.now(), format='mjd', location=self._observatory)
@@ -355,11 +375,14 @@ class TelescopeDaemon:
                     'alt': self._current_alt.to_value(u.deg),
                     'az': self._current_az.to_value(u.deg),
 
-                    'telescope_focus_um': self._telescope_focus_um,
-
                     'moon_separation': get_moon(timenow).separation(pointing).to_value(u.deg),
                     'sun_separation': get_sun(timenow).separation(pointing).to_value(u.deg),
                 })
+
+                if self._telescope_focus_state != FocusState.Absent:
+                    data.update({
+                        'telescope_focus_um': self._telescope_focus_um
+                    })
 
         return data
 
@@ -377,7 +400,7 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotUninitialized
 
             # Check hard limits (security system)
-            if self._config.security_system_daemon:
+            if not self._config.is_superwasp:
                 try:
                     with self._config.security_system_daemon.connect() as daemon:
                         status = daemon.last_measurement()
@@ -696,32 +719,33 @@ class TelescopeDaemon:
                 return CommandStatus.TelescopeNotHomed
 
             if self._pointing_state == TelState.Tracking:
-                if self._config.has_xdelta:
-                    # When tracking we must use the xdelta offset to directly
-                    # offset at the motor controller
-                    offset_ra = self._offset_ra + ra_delta_deg * u.deg
-                    offset_dec = self._offset_dec + dec_delta_deg * u.deg
+                # Offsets are absolute relative to the original tracking coordinate, not cumulative
+                offset_ra = self._offset_ra + ra_delta_deg * u.deg
+                offset_dec = self._offset_dec + dec_delta_deg * u.deg
 
+                if self._config.is_superwasp:
+                    # Offset expects angles in arcseconds
+                    fifo_command = 'Offset {},{}'.format(
+                        offset_ra.to_value(u.arcsecond),
+                        offset_dec.to_value(u.arcsecond))
+                else:
                     # xdelta expects angles in degrees
                     fifo_command = 'xdelta({},{})'.format(
                         offset_ra.to_value(u.deg),
                         offset_dec.to_value(u.deg))
 
-                    if not fifo_write('Tel.in', fifo_command):
-                        log.error(self._config.log_name, 'Failed to write to Tel.in')
-                        return CommandStatus.Failed
-
-                    self._offset_ra = offset_ra
-                    self._offset_dec = offset_dec
-                else:
-                    # TODO: Upgrade SuperWASP CSIMC cards or find another software approach
+                if not fifo_write('Tel.in', fifo_command):
+                    log.error(self._config.log_name, 'Failed to write to Tel.in')
                     return CommandStatus.Failed
+
+                self._offset_ra = offset_ra
+                self._offset_dec = offset_dec
             elif self._pointing_state == TelState.Stopped:
                 # Otherwise just slew to the updated position
                 with self._talon_shm_lock:
                     command = 'HA: {} Dec: {}'.format(
-                        self._current_ha_apparent.to_value(u.rad),
-                        self._current_dec_apparent.to_value(u.rad))
+                        (self._current_ha_apparent + ra_delta_deg * u.deg).to_value(u.rad),
+                        (self._current_dec_apparent + dec_delta_deg * u.deg).to_value(u.rad))
 
                 if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                     return CommandStatus.Failed
@@ -735,11 +759,11 @@ class TelescopeDaemon:
 
     @Pyro4.expose
     def telescope_focus(self, focus_um):
-        """Moves the main telescope focus to a specified position"""
+        """Moves the W1m's focus to a specified position"""
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
-        if not self._config.has_focus:
+        if self._config.is_superwasp:
             return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
@@ -776,11 +800,11 @@ class TelescopeDaemon:
                 return CommandStatus.Succeeded if complete else CommandStatus.Failed
 
     def __move_covers(self, to_open=True):
-        """Open or close the mirror covers"""
+        """Open or close the W1m's mirror covers"""
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
-        if not self._config.has_covers:
+        if self._config.is_superwasp:
             return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
@@ -825,20 +849,20 @@ class TelescopeDaemon:
 
     @Pyro4.expose
     def open_covers(self):
-        """Open the mirror covers"""
+        """Open the W1m's mirror covers"""
         return self.__move_covers(True)
 
     @Pyro4.expose
     def close_covers(self):
-        """Close the mirror covers"""
+        """Close the W1m's mirror covers"""
         return self.__move_covers(False)
 
     def __move_roof(self, to_open=True):
-        """Open or close the roof"""
+        """Open or close SuperWASP's roof"""
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
-        if not self._config.has_roof:
+        if not self._config.is_superwasp:
             return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
@@ -883,12 +907,12 @@ class TelescopeDaemon:
 
     @Pyro4.expose
     def open_roof(self):
-        """Open the roof"""
+        """Open SuperWASP's roof"""
         return self.__move_roof(True)
 
     @Pyro4.expose
     def close_roof(self):
-        """Close the roof"""
+        """Close SuperWASP's roof"""
         return self.__move_roof(False)
 
     @Pyro4.expose
@@ -916,7 +940,7 @@ def fifo_write(fifo_name, fifo_data):
     """Writes a string into the named fifo"""
     try:
         # Don't create a new file if the fifo doesn't exist
-        fd = os.open(FIFO_PATH+fifo_name, os.O_WRONLY)
+        fd = os.open('/usr/local/telescope/comm/' + fifo_name, os.O_WRONLY)
     except OSError:
         return False
 

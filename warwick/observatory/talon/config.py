@@ -26,11 +26,9 @@ CONFIG_SCHEMA = {
     'type': 'object',
     'additionalProperties': False,
     'required': [
-        'daemon', 'log_name', 'control_machines', 'virtual', 'focus_tolerance',
-        'query_delay', 'initialization_timeout', 'slew_timeout', 'focus_timeout',
-        'homing_timeout', 'limit_timeout', 'cover_timeout', 'roof_open_timeout',
-        'roof_close_timeout', 'ping_timeout', 'park_positions',
-        'has_roof', 'has_covers', 'has_focus', 'has_xdelta'
+        'daemon', 'log_name', 'control_machines', 'virtual',
+        'query_delay', 'initialization_timeout', 'slew_timeout',
+        'homing_timeout', 'limit_timeout', 'ping_timeout', 'park_positions'
     ],
     'properties': {
         'daemon': {
@@ -50,9 +48,9 @@ CONFIG_SCHEMA = {
         'virtual': {
             'type': 'boolean',
         },
-        'focus_tolerance': {
-            'type': 'number',
-            'min': 0
+        'telescope': {
+            'type': 'string',
+            'enum': ['SuperWASP', 'W1m'],
         },
         'query_delay': {
             'type': 'number',
@@ -66,10 +64,6 @@ CONFIG_SCHEMA = {
             'type': 'number',
             'min': 0,
         },
-        'focus_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
         'homing_timeout': {
             'type': 'number',
             'min': 0,
@@ -78,33 +72,9 @@ CONFIG_SCHEMA = {
             'type': 'number',
             'min': 0,
         },
-        'cover_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
-        'roof_open_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
-        'roof_close_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
         'ping_timeout': {
             'type': 'number',
             'min': 0,
-        },
-        'has_roof': {
-            'type': 'boolean',
-        },
-        'has_covers': {
-            'type': 'boolean',
-        },
-        'has_focus': {
-            'type': 'boolean',
-        },
-        'has_xdelta': {
-            'type': 'boolean',
         },
         'park_positions': {
             'type': 'object',
@@ -129,7 +99,7 @@ CONFIG_SCHEMA = {
                 }
             }
         },
-        # Optional
+        # W1m only
         'security_system_daemon': {
             'daemon_name': True,
             'type': 'string',
@@ -137,7 +107,46 @@ CONFIG_SCHEMA = {
         'security_system_key': {
             'type': 'string',
         },
-    }
+        'focus_tolerance': {
+            'type': 'number',
+            'min': 0
+        },
+        'focus_timeout': {
+            'type': 'number',
+            'min': 0,
+        },
+        'cover_timeout': {
+            'type': 'number',
+            'min': 0,
+        },
+        # SuperWASP only
+        'roof_open_timeout': {
+            'type': 'number',
+            'min': 0,
+        },
+        'roof_close_timeout': {
+            'type': 'number',
+            'min': 0,
+        }
+    },
+    'anyOf': [
+        {
+            'properties': {
+                'telescope': {
+                    'enum': ['W1m']
+                }
+            },
+            'required': ['security_system_daemon', 'security_system_key', 'focus_tolerance', 'focus_timeout', 'cover_timeout']
+        },
+        {
+            'properties': {
+                'telescope': {
+                    'enum': ['SuperWASP']
+                }
+            },
+            'required': ['roof_open_timeout', 'roof_close_timeout']
+        },
+    ]
 }
 
 
@@ -217,26 +226,22 @@ class Config:
         self.log_name = config_json['log_name']
         self.control_ips = [getattr(IP, machine) for machine in config_json['control_machines']]
         self.virtual = config_json['virtual']
-        self.focus_tolerance = config_json['focus_tolerance']
         self.query_delay = config_json['query_delay']
         self.initialization_timeout = config_json['initialization_timeout']
         self.slew_timeout = config_json['slew_timeout']
-        self.focus_timeout = config_json['focus_timeout']
         self.homing_timeout = config_json['homing_timeout']
         self.limit_timeout = config_json['limit_timeout']
-        self.cover_timeout = config_json['cover_timeout']
-        self.roof_open_timeout = config_json['roof_open_timeout']
-        self.roof_close_timeout = config_json['roof_close_timeout']
         self.ping_timeout = config_json['ping_timeout']
-
-        self.has_roof = config_json['has_roof']
-        self.has_covers = config_json['has_covers']
-        self.has_focus = config_json['has_focus']
-        self.has_xdelta = config_json['has_xdelta']
         self.park_positions = config_json['park_positions']
 
-        self.security_system_daemon = None
-        self.security_system_key = None
-        if 'security_system_daemon' in config_json and 'security_system_key' in config_json:
+        self.is_superwasp = config_json['telescope'] == 'SuperWASP'
+        if self.is_superwasp:
+            self.roof_open_timeout = config_json['roof_open_timeout']
+            self.roof_close_timeout = config_json['roof_close_timeout']
+        else:
+            self.focus_tolerance = config_json['focus_tolerance']
+            self.focus_timeout = config_json['focus_timeout']
+            self.cover_timeout = config_json['cover_timeout']
+
             self.security_system_daemon = getattr(daemons, config_json['security_system_daemon'])
             self.security_system_key = config_json['security_system_key']

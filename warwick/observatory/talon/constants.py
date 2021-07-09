@@ -59,7 +59,7 @@ class CommandStatus:
         # tel specific codes
         -100: 'error: terminated by user',
         -101: 'error: unable to communicate with telescope daemon',
-        -103: 'error: unable to communicate with data pipeline daemon',
+        -102: 'error: command not available for this telescope'
     }
 
     @classmethod
@@ -197,6 +197,38 @@ class RoofState:
         3: TFmt.Yellow + TFmt.Bold,
         4: TFmt.Green + TFmt.Bold,
         5: TFmt.Red + TFmt.Bold,
+    }
+
+    @classmethod
+    def label(cls, status, formatting=False):
+        """
+        Returns a human readable string describing a status
+        Set formatting=true to enable terminal formatting characters
+        """
+        if formatting:
+            if status in cls._formats and status in cls._formats:
+                return cls._formats[status] + cls._labels[status] + TFmt.Clear
+            return TFmt.Red + TFmt.Bold + 'UNKNOWN' + TFmt.Clear
+
+        if status in cls._labels:
+            return cls._labels[status]
+        return 'UNKNOWN'
+
+
+class RoofHeartbeatState:
+    """Talon DHeartbeatState enum"""
+    Disabled, Enabled, Tripped = range(3)
+
+    _labels = {
+        0: 'DISABLED',
+        1: 'ENABLED',
+        2: 'TRIPPED',
+    }
+
+    _formats = {
+        0: TFmt.Red + TFmt.Bold,
+        1: TFmt.Green + TFmt.Bold,
+        2: TFmt.Red + TFmt.Bold,
     }
 
     @classmethod

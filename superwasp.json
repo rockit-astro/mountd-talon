@@ -2,6 +2,7 @@
   "daemon": "localhost_test",
   "log_name": "superwasp_teld",
   "control_machines": ["LocalHost"],
+  "telescope": "SuperWASP",
   "virtual": false,
   "query_delay": 1,
   "focus_tolerance": 0.005,
@@ -14,10 +15,6 @@
   "ping_timeout": 5,
   "roof_open_timeout": 60,
   "roof_close_timeout": 120,
-  "has_roof": true,
-  "has_covers": false,
-  "has_focus": false,
-  "has_xdelta": false,
   "park_positions": {
     "zenith": {
       "desc": "park at zenith for maintenance tasks",

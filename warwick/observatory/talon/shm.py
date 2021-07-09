@@ -21,8 +21,8 @@ import struct
 # These offsets can be found by compiling the following into one of the talon utils (e.g. xobs or getshm)
 # include <stddef.h>
 # printf("Key = 0x%x\n", TELSTATSHMKEY);
-# printf("PID = %zu\n", offsetof(TelStatShm, teld_pid));
-# printf("MJD = 0\n");
+# printf("PID = %zu\n", offsetof(TelStatShm, telescoped_pid));
+# printf("MJD = %zu\n", offsetof(TelStatShm, now));
 # printf("LST = %zu\n", offsetof(TelStatShm, Clst));
 # printf("RAJ2000 = %zu\n", offsetof(TelStatShm, CJ2kRA));
 # printf("DecJ2000 = %zu\n", offsetof(TelStatShm, CJ2kDec));
@@ -30,14 +30,11 @@ import struct
 # printf("DecApparent = %zu\n", offsetof(TelStatShm, CADec));
 # printf("Alt = %zu\n", offsetof(TelStatShm, Calt));
 # printf("Az = %zu\n", offsetof(TelStatShm, Caz));
-# printf("Latitude = %zu\n", offsetof(Now, n_lat));
-# printf("Longitude = %zu\n", offsetof(Now, n_lng));
-# printf("Elevation = %zu\n", offsetof(Now, n_elev));
+# printf("Latitude = %zu\n", offsetof(TelStatShm, now) + offsetof(Now, n_lat));
+# printf("Longitude = %zu\n", offsetof(TelStatShm, now) + offsetof(Now, n_lng));
+# printf("Elevation = %zu\n", offsetof(TelStatShm, now) + offsetof(Now, n_elev));
 # printf("TelState = %zu\n", offsetof(TelStatShm, telstate));
 # printf("TelStateIdx = %zu\n", offsetof(TelStatShm, telstateidx));
-# printf("RoofState = %zu\n", offsetof(TelStatShm, shutterstate));
-# printf("CoverState = %zu\n", offsetof(TelStatShm, coverstate));
-# printf("HeartbeatRemaining = %zu\n", offsetof(TelStatShm, domeheartbeatremaining));
 # printf("RAFlags = %zu\n", offsetof(TelStatShm, minfo) + 1);
 # printf("RAPosLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, poslim));
 # printf("RANegLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, neglim));
@@ -48,37 +45,42 @@ import struct
 # printf("FocusStep = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, step) + 3 * sizeof(MotorInfo));
 # printf("FocusCPos = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, cpos) + 3 * sizeof(MotorInfo));
 # printf("FocusDF = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, df) + 3 * sizeof(MotorInfo));
+# printf("CoverState = %zu\n", offsetof(TelStatShm, coverstate)); // W1m only
+# printf("RoofState = %zu\n", offsetof(TelStatShm, shutterstate)); // SuperWASP only
+# printf("RoofHeartbeatState = %zu\n", offsetof(TelStatShm, domeheartbeatstate)); // SuperWASP only
+# printf("RoofHeartbeatRemaining = %zu\n", offsetof(TelStatShm, domeheartbeatremaining)); // SuperWASP only
 
 
 class ShmOffsets:
     Key = 0x4e56361a
-    PID = 840
-    MJD = 0
-    LST = 152
-    RAJ2000 = 88
-    DecJ2000 = 96
-    HAApparent = 112
-    DecApparent = 120
-    Alt = 128
-    Az = 136
-    Latitude = 8
-    Longitude = 16
-    Elevation = 48
-    TelState = 808
-    TelStateIdx = 812
-    RoofState = 820
-    CoverState = 824
-    HeartbeatRemaining = 836
-    RAFlags = 257
-    RAPosLim = 312
-    RANegLim = 320
-    DecFlags = 377
-    DecPosLim = 432
-    DecNegLim = 440
-    FocusFlags = 617
-    FocusStep = 620
-    FocusCPos = 712
-    FocusDF = 696
+    PID = 0
+    MJD = 8
+    LST = 160
+    RAJ2000 = 96
+    DecJ2000 = 104
+    HAApparent = 120
+    DecApparent = 128
+    Alt = 136
+    Az = 144
+    Latitude = 16
+    Longitude = 24
+    Elevation = 56
+    TelState = 816
+    TelStateIdx = 820
+    RAFlags = 265
+    RAPosLim = 320
+    RANegLim = 328
+    DecFlags = 385
+    DecPosLim = 440
+    DecNegLim = 448
+    FocusFlags = 625
+    FocusStep = 628
+    FocusCPos = 720
+    FocusDF = 704
+    CoverState = 828
+    RoofState = 828
+    RoofHeartbeatState = 832
+    RoofHeartbeatRemaining = 836
 
 
 def shm_read_double(shm, offset):

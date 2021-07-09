@@ -17,5 +17,5 @@
 """teld common code"""
 
 from .config import Config
-from .constants import CommandStatus, TelState, FocusState, CoverState, RoofState
+from .constants import CommandStatus, TelState, FocusState, CoverState, RoofState, RoofHeartbeatState
 from .shm import ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort

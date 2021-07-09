@@ -17,11 +17,9 @@ A configuration file is specified when launching the server, and the `tel` front
   "daemon": "onemetre_telescope", # Run the server as this daemon. Daemon types are registered in `warwick.observatory.common.daemons`.
   "log_name": "teld", # The name to use when writing messages to the observatory log.
   "control_machines": ["OneMetreDome", "OneMetreTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `warwick.observatory.common.IP`.
-  "security_system_daemon": "onemetre_roomalert", # (optional) Daemon to check whether the W1m security system has tripped.
-  "security_system_key": "security_system_safe", # (optional) Switch name for the security system status.
+  "telescope": "W1m", # Either W1m or SuperWASP  
   "virtual": false, # Run talon's telescoped with simulated hardware.
   "query_delay": 1, # Delay between shared memory queries.
-  "focus_tolerance": 0.005, # Consider a focus command complete when it is within this many micron of the requested value.
   "initialization_timeout": 60, # Maximum time allowed for talon's telescoped to start.
   "slew_timeout": 120, # Maximum time allowed to slew from any position to any other position (note: telescoped has its own separate value).
   "focus_timeout": 60, # Maximum time allowed for any focus adjustment (note: telescoped has its own separate value).
@@ -29,12 +27,11 @@ A configuration file is specified when launching the server, and the `tel` front
   "limit_timeout": 120, # Maximum time allowed for each axis limit command (note: telescoped has its own separate value).
   "cover_timeout": 2.5, # Maximum time allowed for telescoped to acknowledge a cover open/close command.
   "ping_timeout": 5, # Maximum time allowed to acknowledge a ping command.
-  "roof_open_timeout": 0, # Maximum time allowed to fully open the roll-back roof (note: telescoped has its own separate value).
-  "roof_close_timeout": 0, # Maximum time allowed to fully close the roll-back roof (note: telescoped has its own separate value).
-  "has_roof": false, # Is talon's telescoped configured with the SuperWASP roof controller interface?
-  "has_covers": true, # Is talon's telescoped configured with mirror covers?
-  "has_focus": true, # Is talon's telescoped configured with a focus axis?
-  "has_xdelta": true, # Is talon's telescoped configured for xdelta offsets?
+  "focus_tolerance": 0.005, # (W1m only) Consider a focus command complete when it is within this many micron of the requested value.
+  "security_system_daemon": "onemetre_roomalert", # (W1m only) Daemon to check whether the W1m security system has tripped.
+  "security_system_key": "security_system_safe", # (W1m only) Switch name for the security system status.
+  "roof_open_timeout": 0, # (SuperWASP only) Maximum time allowed to fully open the roll-back roof (note: telescoped has its own separate value).
+  "roof_close_timeout": 0, # (SuperWASP only) Maximum time allowed to fully close the roll-back roof (note: telescoped has its own separate value).
   "park_positions": {
     "stow": { # Positions that can be used with 'tel park'.
       "desc": "general purpose park protecting the mirror and instrument", # Description reported by 'tel park'.
