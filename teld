@@ -90,10 +90,10 @@ class TelescopeDaemon:
         self._telescope_focus_um = 0
         self._last_telescope_focus_um = 0
 
-        self._ha_positive_limit = 0 * u.rad
-        self._ha_negative_limit = 0 * u.rad
-        self._dec_positive_limit = 0 * u.rad
-        self._dec_negative_limit = 0 * u.rad
+        self._ha_positive_limit = self._config.ha_soft_limits[1] * u.deg
+        self._ha_negative_limit = self._config.ha_soft_limits[0] * u.deg
+        self._dec_positive_limit = self._config.dec_soft_limits[1] * u.deg
+        self._dec_negative_limit = self._config.dec_soft_limits[0] * u.deg
 
         self._last_talon_mjd = 0
         self._talon_mjd = 0
@@ -218,12 +218,6 @@ class TelescopeDaemon:
                     lat=shm_read_double(self._talon_shm, ShmOffsets.Latitude) * u.rad,
                     lon=shm_read_double(self._talon_shm, ShmOffsets.Longitude) * u.rad,
                     height=shm_read_double(self._talon_shm, ShmOffsets.Elevation) * 6.37816e6 * u.m)
-
-                # Update limits
-                self._ha_positive_limit = shm_read_double(self._talon_shm, ShmOffsets.RAPosLim) * u.rad
-                self._ha_negative_limit = shm_read_double(self._talon_shm, ShmOffsets.RANegLim) * u.rad
-                self._dec_positive_limit = shm_read_double(self._talon_shm, ShmOffsets.DecPosLim) * u.rad
-                self._dec_negative_limit = shm_read_double(self._talon_shm, ShmOffsets.DecNegLim) * u.rad
 
     def __poll_tel_status(self):
         """Background thread that polls shared memory for the current telescope status"""
@@ -507,20 +501,12 @@ class TelescopeDaemon:
             if not self.__point(slew_to_zenith, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
-            with self._talon_shm_lock:
-                self._ha_positive_limit = shm_read_double(self._talon_shm, ShmOffsets.RAPosLim) * u.rad
-                self._ha_negative_limit = shm_read_double(self._talon_shm, ShmOffsets.RANegLim) * u.rad
-
             log.info(self._config.log_name, 'Finding Dec limits')
             if not self.__point('limitsD', TelState.Limiting, TelState.Stopped, self._config.limit_timeout):
                 return CommandStatus.Failed
 
             if not self.__point(slew_to_zenith, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
-
-            with self._talon_shm_lock:
-                self._dec_positive_limit = shm_read_double(self._talon_shm, ShmOffsets.DecPosLim) * u.rad
-                self._dec_negative_limit = shm_read_double(self._talon_shm, ShmOffsets.DecNegLim) * u.rad
 
             if self._telescope_focus_state != FocusState.Absent:
                 log.info(self._config.log_name, 'Finding Focus limits')

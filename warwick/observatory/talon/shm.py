@@ -36,11 +36,7 @@ import struct
 # printf("TelState = %zu\n", offsetof(TelStatShm, telstate));
 # printf("TelStateIdx = %zu\n", offsetof(TelStatShm, telstateidx));
 # printf("RAFlags = %zu\n", offsetof(TelStatShm, minfo) + 1);
-# printf("RAPosLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, poslim));
-# printf("RANegLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, neglim));
 # printf("DecFlags = %zu\n", offsetof(TelStatShm, minfo) + 1 + sizeof(MotorInfo));
-# printf("DecPosLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, poslim) + sizeof(MotorInfo));
-# printf("DecNegLim = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, neglim) + sizeof(MotorInfo));
 # printf("FocusFlags = %zu\n", offsetof(TelStatShm, minfo) + 1 + 3 * sizeof(MotorInfo));
 # printf("FocusStep = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, step) + 3 * sizeof(MotorInfo));
 # printf("FocusCPos = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, cpos) + 3 * sizeof(MotorInfo));
@@ -68,11 +64,7 @@ class ShmOffsets:
     TelState = 816
     TelStateIdx = 820
     RAFlags = 265
-    RAPosLim = 320
-    RANegLim = 328
     DecFlags = 385
-    DecPosLim = 440
-    DecNegLim = 448
     FocusFlags = 625
     FocusStep = 628
     FocusCPos = 720

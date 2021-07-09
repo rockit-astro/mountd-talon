@@ -28,7 +28,9 @@ CONFIG_SCHEMA = {
     'required': [
         'daemon', 'log_name', 'control_machines', 'virtual',
         'query_delay', 'initialization_timeout', 'slew_timeout',
-        'homing_timeout', 'limit_timeout', 'ping_timeout', 'park_positions'
+        'ha_soft_limits', 'dec_soft_limits',
+        'homing_timeout', 'limit_timeout', 'ping_timeout',
+        'park_positions'
     ],
     'properties': {
         'daemon': {
@@ -76,6 +78,26 @@ CONFIG_SCHEMA = {
             'type': 'number',
             'min': 0,
         },
+        'ha_soft_limits': {
+            'type': 'array',
+            'maxItems': 2,
+            'minItems': 2,
+            'items': {
+                'type': 'number',
+                'min': -180,
+                'max': 180
+            }
+        },
+        'dec_soft_limits': {
+            'type': 'array',
+            'maxItems': 2,
+            'minItems': 2,
+            'items': {
+                'type': 'number',
+                'min': -90,
+                'max': 90
+            }
+        },
         'park_positions': {
             'type': 'object',
             'additionalProperties': {
@@ -89,12 +111,12 @@ CONFIG_SCHEMA = {
                     'alt': {
                         'type': 'number',
                         'min': 0,
-                        'max': 1.570796
+                        'max': 90
                     },
                     'az': {
                         'type': 'number',
                         'min': 0,
-                        'max': 6.283185
+                        'max': 360
                     }
                 }
             }
@@ -232,6 +254,8 @@ class Config:
         self.homing_timeout = config_json['homing_timeout']
         self.limit_timeout = config_json['limit_timeout']
         self.ping_timeout = config_json['ping_timeout']
+        self.ha_soft_limits = config_json['ha_soft_limits']
+        self.dec_soft_limits = config_json['dec_soft_limits']
         self.park_positions = config_json['park_positions']
 
         self.is_superwasp = config_json['telescope'] == 'SuperWASP'

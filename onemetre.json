@@ -15,8 +15,8 @@
   "limit_timeout": 120,
   "cover_timeout": 2.5,
   "ping_timeout": 5,
-  "roof_open_timeout": 0,
-  "roof_close_timeout": 0,
+  "ha_soft_limits": [-72, 90],
+  "dec_soft_limits": [-30, 85],
   "park_positions": {
     "stow": {
       "desc": "general purpose park protecting the mirror and instrument",
