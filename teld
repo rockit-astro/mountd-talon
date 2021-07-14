@@ -594,6 +594,48 @@ class TelescopeDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
+    def slew_hadec(self, ha_deg, dec_deg):
+        """Moves the telescope to a target"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.TelescopeNotHomed
+
+            if self._pointing_state != TelState.Stopped:
+                return CommandStatus.TelescopeNotStopped
+
+            # Check against telescope limits
+            ha = ha_deg * u.deg
+            dec = dec_deg * u.deg
+
+            if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
+                log.error(self._config.log_name, 'failed to move to ha {} dec {}; ha {} outside limit ({}, {})'.format(
+                    ha_deg, dec_deg, dec_deg, self._ha_negative_limit, self._ha_positive_limit))
+                return CommandStatus.OutsideHALimits
+
+            if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
+                log.error(self._config.log_name, 'failed to move to ha {} dec {}; dec {} outside limit ({}, {})'.format(
+                    ha_deg, dec_deg, dec_deg, self._dec_negative_limit, self._dec_positive_limit))
+                return CommandStatus.OutsideDecLimits
+
+            command = 'HA: {} Dec: {}'.format(
+                ha.to_value(u.rad),
+                dec.to_value(u.rad))
+
+            if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
+                return CommandStatus.Failed
+
+            if not self.__reset_pointing_offset():
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
     def slew_radec(self, ra_deg, dec_deg):
         """Moves the telescope to a target"""
         if not pyro_client_matches(self._config.control_ips):
@@ -616,7 +658,7 @@ class TelescopeDaemon:
             dec = coords.dec.to(u.deg)
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
+                log.error(self._config.log_name, 'failed to move to ra {} dec {}; ha {} outside limit ({}, {})'.format(
                     ra_deg, dec_deg, dec_deg, self._ha_negative_limit, self._ha_positive_limit))
                 return CommandStatus.OutsideHALimits
 
@@ -661,7 +703,7 @@ class TelescopeDaemon:
             dec = coords.dec.to(u.deg)
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec{}; ha {} outside limit ({}, {})'.format(
+                log.error(self._config.log_name, 'failed to move to ra {} dec {}; ha {} outside limit ({}, {})'.format(
                     ra, dec, ha, self._ha_negative_limit, self._ha_positive_limit))
                 return CommandStatus.OutsideHALimits
 
