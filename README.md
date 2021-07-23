@@ -1,7 +1,7 @@
 ## Talon telescope daemon
 
 `teld` interfaces with and wraps the low-level talon daemons and exposes a
-coherant telescope control interface via Pyro.
+coherent telescope control interface via Pyro.
 
 `tel` is a commandline utility for controlling the telescope.
 
@@ -72,7 +72,7 @@ Now open a port in the firewall:
 sudo firewall-cmd --zone=public --add-port=<port>/tcp --permanent
 sudo firewall-cmd --reload
 ```
-where `port` is the port defined in `warwick.observatory.common.daemons` for the daemon specified in the dome config.
+where `port` is the port defined in `warwick.observatory.common.daemons` for the daemon specified in the config.
 
 ### Upgrading Installation
 
@@ -85,13 +85,13 @@ sudo yum update
 
 The daemon should then be restarted to use the newly installed code:
 ```
-sudo systemctl stop domed@<config>
-sudo systemctl start domed@<config>
+sudo systemctl stop teld@<config>
+sudo systemctl start teld@<config>
 ```
 
 ### Testing Locally
 
-The dome server and client can be run directly from a git clone:
+The server and client can be run directly from a git clone:
 ```
 ./teld onemetre.json
 TELD_CONFIG_PATH=./onemetre.json ./tel status
