@@ -33,7 +33,6 @@ class CommandStatus:
     # Command-specific codes
     TelescopeNotInitialized = 10
     TelescopeNotHomed = 11
-    TelescopeNotStopped = 12
     TelescopeNotUninitialized = 14
 
     OutsideHALimits = 20
@@ -50,7 +49,6 @@ class CommandStatus:
         # Command-specific codes
         10: 'error: telescope has not been initialized',
         11: 'error: telescope has not been homed',
-        12: 'error: telescope is not stopped',
         14: 'error: telescope has already been initialized',
 
         20: 'error: requested coordinates outside HA limits',

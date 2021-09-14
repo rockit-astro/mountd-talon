@@ -456,9 +456,6 @@ class TelescopeDaemon:
             if self._pointing_state == TelState.Absent:
                 return CommandStatus.TelescopeNotInitialized
 
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
-
             log.info(self._config.log_name, 'Homing HA axis')
             if not self.__point('homeH', TelState.Homing, TelState.Stopped, self._config.homing_timeout):
                 return CommandStatus.Failed
@@ -486,9 +483,6 @@ class TelescopeDaemon:
 
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
-
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
 
             slew_to_zenith = 'Alt: 1.570796 Az: 0'
             if not self.__point(slew_to_zenith, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
@@ -561,9 +555,6 @@ class TelescopeDaemon:
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
 
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
-
             # Check against telescope limits
             timenow = Time(Time.now(), location=self._observatory)
             coords = SkyCoord(alt=alt_deg, az=az_deg, unit=u.deg, frame='altaz',
@@ -606,9 +597,6 @@ class TelescopeDaemon:
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
 
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
-
             # Check against telescope limits
             ha = ha_deg * u.deg
             dec = dec_deg * u.deg
@@ -647,9 +635,6 @@ class TelescopeDaemon:
 
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
-
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
 
             # Check against telescope limits
             timenow = Time(Time.now(), location=self._observatory)
@@ -691,9 +676,6 @@ class TelescopeDaemon:
 
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
-
-            if self._pointing_state != TelState.Stopped:
-                return CommandStatus.TelescopeNotStopped
 
             # Check against telescope limits
             timenow = Time(Time.now(), location=self._observatory)
