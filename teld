@@ -728,7 +728,7 @@ class TelescopeDaemon:
             if not self._axes_homed:
                 return CommandStatus.TelescopeNotHomed
 
-            if self._pointing_state == TelState.Tracking:
+            if self._pointing_state in [TelState.Tracking, TelState.Hunting]:
                 # Offsets are absolute relative to the original tracking coordinate, not cumulative
                 offset_ra = self._offset_ra + ra_delta_deg * u.deg
                 offset_dec = self._offset_dec + dec_delta_deg * u.deg
