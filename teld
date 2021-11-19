@@ -347,7 +347,7 @@ class TelescopeDaemon:
                     'roof_state_label': RoofState.label(self._roof_state),
                     'roof_heartbeat_state': self._roof_heartbeat_state,
                     'roof_heartbeat_state_label': RoofHeartbeatState.label(self._roof_heartbeat_state),
-                    'roof_hearbeat_remaining': self._roof_heartbeat_remaining
+                    'roof_heartbeat_remaining': self._roof_heartbeat_remaining
                 })
             else:
                 data.update({
@@ -885,6 +885,9 @@ class TelescopeDaemon:
             if self._roof_state == RoofState.Absent:
                 return CommandStatus.Failed
 
+            if to_open and self._roof_heartbeat_state == RoofHeartbeatState.Tripped:
+                return CommandStatus.RoofHeartbeatTripped
+
             if to_open:
                 log.info(self._config.log_name, 'Opening roof')
             else:
@@ -924,6 +927,37 @@ class TelescopeDaemon:
     def close_roof(self):
         """Close SuperWASP's roof"""
         return self.__move_roof(False)
+
+    @Pyro4.expose
+    def set_heartbeat_timer(self, timeout):
+        """Enable or disable the auto-close countdown"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        if not self._config.is_superwasp:
+            return CommandStatus.Failed
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._pointing_state == TelState.Absent:
+                return CommandStatus.TelescopeNotInitialized
+
+            if self._roof_state == RoofState.Absent:
+                return CommandStatus.Failed
+
+            if timeout != 0 and self._roof_heartbeat_state == RoofHeartbeatState.Tripped:
+                return CommandStatus.RoofHeartbeatTripped
+
+            if timeout < 0 or timeout >= 600:
+                return CommandStatus.RoofHeartbeatInvalid
+
+            with self._roof_condition:
+                if not fifo_write('Dome.in', 'heartbeat {}'.format(timeout)):
+                    log.error(self._config.log_name, 'Failed to write to Dome.in')
+                    return CommandStatus.Failed
+                return CommandStatus.Succeeded
 
     @Pyro4.expose
     def ping(self):

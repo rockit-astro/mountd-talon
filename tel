@@ -96,6 +96,24 @@ def operate_roof(config, args):
     return -1
 
 
+def roof_heartbeat(config, args):
+    """Configure the SuperWASP roof close heartbeat"""
+    if args:
+        with config.daemon.connect() as teld:
+            if args[0] == 'disable':
+                return teld.set_heartbeat_timer(0)
+
+            if args[0] == 'enable':
+                if len(args) > 1:
+                    timeout = int(args[1])
+                    if timeout > 0:
+                        return teld.set_heartbeat_timer(timeout)
+            print('usage: {} heartbeat enable <timeout in seconds>'.format(SCRIPT_NAME))
+            return -1
+    print('usage: {} heartbeat (disable|enable)'.format(SCRIPT_NAME))
+    return -1
+
+
 def park(config, args):
     """Slews the telescope to a named park position"""
     if len(args) == 1:
@@ -243,7 +261,8 @@ def status(config, _):
         print('   Roof is {}'.format(RoofState.label(data['roof_state'], formatting=True)))
         print('   Roof heartbeat is {}'.format(RoofHeartbeatState.label(data['roof_heartbeat_state'], formatting=True)))
         if data['roof_heartbeat_state'] == RoofHeartbeatState.Enabled:
-            print('   Roof heartbeat remaining: {}s'.format(data['roof_heartbeat_remaining']))
+            print('   Roof heartbeat remaining: {}{}s{}'.format(TFmt.Bold, data['roof_heartbeat_remaining'],
+                                                                TFmt.Clear))
 
     if 'cover_state' in data:
         print('   Covers are {}'.format(CoverState.label(data['cover_state'], formatting=True)))
@@ -350,6 +369,7 @@ if __name__ == '__main__':
     commands = {
         'covers': operate_cover,
         'roof': operate_roof,
+        'heartbeat': roof_heartbeat,
         'park': park,
         'slew': slew,
         'horizon': horizon,
