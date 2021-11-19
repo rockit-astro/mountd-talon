@@ -35,6 +35,9 @@ class CommandStatus:
     TelescopeNotHomed = 11
     TelescopeNotUninitialized = 14
 
+    RoofHeartbeatTripped = 15
+    RoofHeartbeatInvalid = 16
+
     OutsideHALimits = 20
     OutsideDecLimits = 21
 
@@ -50,6 +53,9 @@ class CommandStatus:
         10: 'error: telescope has not been initialized',
         11: 'error: telescope has not been homed',
         14: 'error: telescope has already been initialized',
+
+        15: 'error: roof heartbeat monitor has tripped',
+        16: 'error: roof heartbeat timeout must be less than 600s',
 
         20: 'error: requested coordinates outside HA limits',
         21: 'error: requested coordinates outside Dec limits',
