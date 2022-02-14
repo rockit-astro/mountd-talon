@@ -52,6 +52,7 @@ class TelescopeDaemon:
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
+        self._roof_command_lock = threading.Lock()
         self._pointing_condition = threading.Condition()
         self._cover_condition = threading.Condition()
         self._roof_condition = threading.Condition()
@@ -387,40 +388,41 @@ class TelescopeDaemon:
             return CommandStatus.InvalidControlIP
 
         with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
+            with TryLock(self._roof_command_lock) as roof_success:
+                if not success or not roof_success:
+                    return CommandStatus.Blocked
 
-            if self._pointing_state != TelState.Absent:
-                return CommandStatus.TelescopeNotUninitialized
+                if self._pointing_state != TelState.Absent:
+                    return CommandStatus.TelescopeNotUninitialized
 
-            # Check hard limits (security system)
-            if not self._config.is_superwasp:
-                try:
-                    with self._config.security_system_daemon.connect() as daemon:
-                        status = daemon.last_measurement()
-                        key = self._config.security_system_key
-                        if key not in status or not status[key]:
-                            return CommandStatus.SecuritySystemTripped
-                except Pyro4.errors.CommunicationError:
-                    return CommandStatus.CannotCommunicateWithSecuritySystem
+                # Check hard limits (security system)
+                if not self._config.is_superwasp:
+                    try:
+                        with self._config.security_system_daemon.connect() as daemon:
+                            status = daemon.last_measurement()
+                            key = self._config.security_system_key
+                            if key not in status or not status[key]:
+                                return CommandStatus.SecuritySystemTripped
+                    except Pyro4.errors.CommunicationError:
+                        return CommandStatus.CannotCommunicateWithSecuritySystem
 
-            # systemd starts teld with a clean environment
-            # load the talon-specific environment just for talon
-            talon_env = environment_from_source('/etc/profile.d/talon.sh')
-            with open(os.devnull, 'w') as devnull:
-                daemon_args = ['/usr/local/telescope/bin/rund', 'telescoped']
-                if self._config.virtual:
-                    daemon_args.append('-v')
+                # systemd starts teld with a clean environment
+                # load the talon-specific environment just for talon
+                talon_env = environment_from_source('/etc/profile.d/talon.sh')
+                with open(os.devnull, 'w') as devnull:
+                    daemon_args = ['/usr/local/telescope/bin/rund', 'telescoped']
+                    if self._config.virtual:
+                        daemon_args.append('-v')
 
-                subprocess.call(daemon_args, env=talon_env, stdout=devnull, stderr=devnull)
+                    subprocess.call(daemon_args, env=talon_env, stdout=devnull, stderr=devnull)
 
-            with self._pointing_condition:
-                self._pointing_condition.wait(self._config.initialization_timeout)
+                with self._pointing_condition:
+                    self._pointing_condition.wait(self._config.initialization_timeout)
 
-            if self._pointing_state == TelState.Absent:
-                return CommandStatus.Failed
+                if self._pointing_state == TelState.Absent:
+                    return CommandStatus.Failed
 
-            return CommandStatus.Succeeded
+                return CommandStatus.Succeeded
 
     @Pyro4.expose
     def shutdown(self):
@@ -429,19 +431,20 @@ class TelescopeDaemon:
             return CommandStatus.InvalidControlIP
 
         with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
+            with TryLock(self._roof_command_lock) as roof_success:
+                if not success or not roof_success:
+                    return CommandStatus.Blocked
 
-            if self._pointing_state == TelState.Absent:
-                return CommandStatus.TelescopeNotInitialized
+                if self._pointing_state == TelState.Absent:
+                    return CommandStatus.TelescopeNotInitialized
 
-            # Send a shutdown signal to telescoped, which will
-            # stop any motion and gracefully exit
-            # The main daemon thread will detect the shm data becoming stale
-            # and clean up our internal state in teld
-            os.kill(self._talon_pid, signal.SIGINT)
+                # Send a shutdown signal to telescoped, which will
+                # stop any motion and gracefully exit
+                # The main daemon thread will detect the shm data becoming stale
+                # and clean up our internal state in teld
+                os.kill(self._talon_pid, signal.SIGINT)
 
-            return CommandStatus.Succeeded
+                return CommandStatus.Succeeded
 
     @Pyro4.expose
     def find_homes(self):
@@ -875,7 +878,7 @@ class TelescopeDaemon:
         if not self._config.is_superwasp:
             return CommandStatus.Failed
 
-        with TryLock(self._command_lock) as success:
+        with TryLock(self._roof_command_lock) as success:
             if not success:
                 return CommandStatus.Blocked
 
@@ -937,7 +940,7 @@ class TelescopeDaemon:
         if not self._config.is_superwasp:
             return CommandStatus.Failed
 
-        with TryLock(self._command_lock) as success:
+        with TryLock(self._roof_command_lock) as success:
             if not success:
                 return CommandStatus.Blocked
 
