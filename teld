@@ -34,7 +34,7 @@ import Pyro4
 from warwick.observatory.common import log, TryLock
 from warwick.observatory.common.helpers import pyro_client_matches
 from warwick.observatory.talon import (
-    CommandStatus, TelState, FocusState, CoverState, RoofState, RoofHeartbeatState,
+    CommandStatus, TelState, FocusState, CoverState,
     Config, ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
 
 # Set automatically when generating RPM package
@@ -52,10 +52,8 @@ class TelescopeDaemon:
 
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
-        self._roof_command_lock = threading.Lock()
         self._pointing_condition = threading.Condition()
         self._cover_condition = threading.Condition()
-        self._roof_condition = threading.Condition()
         self._telescope_focus_condition = threading.Condition()
         self._force_stopped = False
 
@@ -80,11 +78,6 @@ class TelescopeDaemon:
 
         self._last_cover_state = CoverState.Absent
         self._cover_state = CoverState.Absent
-
-        self._last_roof_state = RoofState.Absent
-        self._roof_state = RoofState.Absent
-        self._roof_heartbeat_state = RoofHeartbeatState.Disabled
-        self._roof_heartbeat_remaining = 0
 
         self._last_telescope_focus_state = FocusState.Absent
         self._telescope_focus_state = FocusState.Absent
@@ -130,18 +123,11 @@ class TelescopeDaemon:
                     self._pointing_state = pointing_state
                     self._pointing_idx = shm_read_int(self._talon_shm, ShmOffsets.TelStateIdx)
 
-                    if self._config.is_superwasp:
-                        self._last_roof_state = self._roof_state
-                        self._roof_state = shm_read_int(self._talon_shm, ShmOffsets.RoofState)
-                        self._roof_heartbeat_state = shm_read_int(self._talon_shm, ShmOffsets.RoofHeartbeatState)
-                        self._roof_heartbeat_remaining = shm_read_int(self._talon_shm, ShmOffsets.RoofHeartbeatRemaining)
-                        self._last_cover_state = self._cover_state = CoverState.Absent
-                    else:
+                    if self._config.is_onemetre:
                         self._last_cover_state = self._cover_state
                         self._cover_state = shm_read_int(self._talon_shm, ShmOffsets.CoverState)
-                        self._last_roof_state = self._roof_state = RoofState.Absent
-                        self._roof_heartbeat_state = RoofHeartbeatState.Disabled
-                        self._roof_heartbeat_remaining = 0
+                    else:
+                        self._last_cover_state = self._cover_state = CoverState.Absent
 
                     self._current_ra_j2000 = shm_read_double(self._talon_shm, ShmOffsets.RAJ2000) * u.rad
                     self._current_dec_j2000 = shm_read_double(self._talon_shm, ShmOffsets.DecJ2000) * u.rad
@@ -226,45 +212,39 @@ class TelescopeDaemon:
             # Acquire all condition locks to avoid races with commands
             with self._pointing_condition:
                 with self._cover_condition:
-                    with self._roof_condition:
-                        with self._telescope_focus_condition:
-                            self.__update_state_from_talon_shm()
+                    with self._telescope_focus_condition:
+                        self.__update_state_from_talon_shm()
 
-                            if self._last_pointing_idx != self._pointing_idx:
-                                print('Pointing: {} ({}) -> {} ({})'.format(
-                                    TelState.label(self._last_pointing_state), self._last_pointing_idx,
-                                    TelState.label(self._pointing_state), self._pointing_idx))
-                                self._pointing_condition.notify_all()
+                        if self._last_pointing_idx != self._pointing_idx:
+                            print('Pointing: {} ({}) -> {} ({})'.format(
+                                TelState.label(self._last_pointing_state), self._last_pointing_idx,
+                                TelState.label(self._pointing_state), self._pointing_idx))
+                            self._pointing_condition.notify_all()
 
-                            if self._last_cover_state != self._cover_state:
-                                print('Cover: ' + CoverState.label(self._last_cover_state) + ' -> ' +
-                                      CoverState.label(self._cover_state))
-                                self._cover_condition.notify_all()
+                        if self._last_cover_state != self._cover_state:
+                            print('Cover: ' + CoverState.label(self._last_cover_state) + ' -> ' +
+                                  CoverState.label(self._cover_state))
+                            self._cover_condition.notify_all()
 
-                            if self._last_roof_state != self._roof_state:
-                                print('Roof: ' + RoofState.label(self._last_roof_state) + ' -> ' +
-                                      RoofState.label(self._roof_state))
-                                self._roof_condition.notify_all()
+                        if self._last_telescope_focus_um != self._telescope_focus_um:
+                            print('tel focus: {:2f} -> {:2f}'.format(
+                                self._last_telescope_focus_um, self._telescope_focus_um))
+                            self._telescope_focus_condition.notify_all()
 
-                            if self._last_telescope_focus_um != self._telescope_focus_um:
-                                print('tel focus: {:2f} -> {:2f}'.format(
-                                    self._last_telescope_focus_um, self._telescope_focus_um))
-                                self._telescope_focus_condition.notify_all()
-
-                            if self._telescope_focus_state != self._last_telescope_focus_state:
-                                print('Focus: ' + FocusState.label(self._last_telescope_focus_state) +
-                                      ' -> ' + FocusState.label(self._telescope_focus_state))
-                                self._telescope_focus_condition.notify_all()
+                        if self._telescope_focus_state != self._last_telescope_focus_state:
+                            print('Focus: ' + FocusState.label(self._last_telescope_focus_state) +
+                                  ' -> ' + FocusState.label(self._telescope_focus_state))
+                            self._telescope_focus_condition.notify_all()
 
             time.sleep(self._config.query_delay)
 
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
-        if self._config.is_superwasp:
-            fifo_command = 'Offset 0,0'
-        else:
+        if self._config.is_onemetre:
             fifo_command = 'xdelta(0,0)'
-
+        else:
+            fifo_command = 'Offset 0,0'
+            
         if not fifo_write('Tel.in', fifo_command):
             log.error(self._config.log_name, 'Failed to write to Tel.in')
             return False
@@ -342,15 +322,7 @@ class TelescopeDaemon:
                 'lst': self._current_lst.to_value(u.deg),
             })
 
-            if self._config.is_superwasp:
-                data.update({
-                    'roof_state': self._roof_state,
-                    'roof_state_label': RoofState.label(self._roof_state),
-                    'roof_heartbeat_state': self._roof_heartbeat_state,
-                    'roof_heartbeat_state_label': RoofHeartbeatState.label(self._roof_heartbeat_state),
-                    'roof_heartbeat_remaining': self._roof_heartbeat_remaining
-                })
-            else:
+            if self._config.is_onemetre:
                 data.update({
                     'cover_state': self._cover_state,
                     'telescope_focus_state': self._telescope_focus_state
@@ -388,41 +360,40 @@ class TelescopeDaemon:
             return CommandStatus.InvalidControlIP
 
         with TryLock(self._command_lock) as success:
-            with TryLock(self._roof_command_lock) as roof_success:
-                if not success or not roof_success:
-                    return CommandStatus.Blocked
+            if not success:
+                return CommandStatus.Blocked
 
-                if self._pointing_state != TelState.Absent:
-                    return CommandStatus.TelescopeNotUninitialized
+            if self._pointing_state != TelState.Absent:
+                return CommandStatus.TelescopeNotUninitialized
 
-                # Check hard limits (security system)
-                if not self._config.is_superwasp:
-                    try:
-                        with self._config.security_system_daemon.connect() as daemon:
-                            status = daemon.last_measurement()
-                            key = self._config.security_system_key
-                            if key not in status or not status[key]:
-                                return CommandStatus.SecuritySystemTripped
-                    except Pyro4.errors.CommunicationError:
-                        return CommandStatus.CannotCommunicateWithSecuritySystem
+            # Check hard limits (security system)
+            if self._config.is_onemetre:
+                try:
+                    with self._config.security_system_daemon.connect() as daemon:
+                        status = daemon.last_measurement()
+                        key = self._config.security_system_key
+                        if key not in status or not status[key]:
+                            return CommandStatus.SecuritySystemTripped
+                except Pyro4.errors.CommunicationError:
+                    return CommandStatus.CannotCommunicateWithSecuritySystem
 
-                # systemd starts teld with a clean environment
-                # load the talon-specific environment just for talon
-                talon_env = environment_from_source('/etc/profile.d/talon.sh')
-                with open(os.devnull, 'w') as devnull:
-                    daemon_args = ['/usr/local/telescope/bin/rund', 'telescoped']
-                    if self._config.virtual:
-                        daemon_args.append('-v')
+            # systemd starts teld with a clean environment
+            # load the talon-specific environment just for talon
+            talon_env = environment_from_source('/etc/profile.d/talon.sh')
+            with open(os.devnull, 'w') as devnull:
+                daemon_args = ['/usr/local/telescope/bin/rund', 'telescoped']
+                if self._config.virtual:
+                    daemon_args.append('-v')
 
-                    subprocess.call(daemon_args, env=talon_env, stdout=devnull, stderr=devnull)
+                subprocess.call(daemon_args, env=talon_env, stdout=devnull, stderr=devnull)
 
-                with self._pointing_condition:
-                    self._pointing_condition.wait(self._config.initialization_timeout)
+            with self._pointing_condition:
+                self._pointing_condition.wait(self._config.initialization_timeout)
 
-                if self._pointing_state == TelState.Absent:
-                    return CommandStatus.Failed
+            if self._pointing_state == TelState.Absent:
+                return CommandStatus.Failed
 
-                return CommandStatus.Succeeded
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def shutdown(self):
@@ -431,20 +402,19 @@ class TelescopeDaemon:
             return CommandStatus.InvalidControlIP
 
         with TryLock(self._command_lock) as success:
-            with TryLock(self._roof_command_lock) as roof_success:
-                if not success or not roof_success:
-                    return CommandStatus.Blocked
+            if not success:
+                return CommandStatus.Blocked
 
-                if self._pointing_state == TelState.Absent:
-                    return CommandStatus.TelescopeNotInitialized
+            if self._pointing_state == TelState.Absent:
+                return CommandStatus.TelescopeNotInitialized
 
-                # Send a shutdown signal to telescoped, which will
-                # stop any motion and gracefully exit
-                # The main daemon thread will detect the shm data becoming stale
-                # and clean up our internal state in teld
-                os.kill(self._talon_pid, signal.SIGINT)
+            # Send a shutdown signal to telescoped, which will
+            # stop any motion and gracefully exit
+            # The main daemon thread will detect the shm data becoming stale
+            # and clean up our internal state in teld
+            os.kill(self._talon_pid, signal.SIGINT)
 
-                return CommandStatus.Succeeded
+            return CommandStatus.Succeeded
 
     @Pyro4.expose
     def find_homes(self):
@@ -736,16 +706,16 @@ class TelescopeDaemon:
                 offset_ra = self._offset_ra + ra_delta_deg * u.deg
                 offset_dec = self._offset_dec + dec_delta_deg * u.deg
 
-                if self._config.is_superwasp:
-                    # Offset expects angles in arcseconds
-                    fifo_command = 'Offset {},{}'.format(
-                        offset_ra.to_value(u.arcsecond),
-                        offset_dec.to_value(u.arcsecond))
-                else:
+                if self._config.is_onemetre:
                     # xdelta expects angles in degrees
                     fifo_command = 'xdelta({},{})'.format(
                         offset_ra.to_value(u.deg),
                         offset_dec.to_value(u.deg))
+                else:
+                    # Offset expects angles in arcseconds
+                    fifo_command = 'Offset {},{}'.format(
+                        offset_ra.to_value(u.arcsecond),
+                        offset_dec.to_value(u.arcsecond))
 
                 if not fifo_write('Tel.in', fifo_command):
                     log.error(self._config.log_name, 'Failed to write to Tel.in')
@@ -776,7 +746,7 @@ class TelescopeDaemon:
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
-        if self._config.is_superwasp:
+        if not self._config.is_onemetre:
             return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
@@ -817,7 +787,7 @@ class TelescopeDaemon:
         if not pyro_client_matches(self._config.control_ips):
             return CommandStatus.InvalidControlIP
 
-        if self._config.is_superwasp:
+        if not self._config.is_onemetre:
             return CommandStatus.Failed
 
         with TryLock(self._command_lock) as success:
@@ -869,98 +839,6 @@ class TelescopeDaemon:
     def close_covers(self):
         """Close the W1m's mirror covers"""
         return self.__move_covers(False)
-
-    def __move_roof(self, to_open=True):
-        """Open or close SuperWASP's roof"""
-        if not pyro_client_matches(self._config.control_ips):
-            return CommandStatus.InvalidControlIP
-
-        if not self._config.is_superwasp:
-            return CommandStatus.Failed
-
-        with TryLock(self._roof_command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            if self._pointing_state == TelState.Absent:
-                return CommandStatus.TelescopeNotInitialized
-
-            if self._roof_state == RoofState.Absent:
-                return CommandStatus.Failed
-
-            if to_open and self._roof_heartbeat_state == RoofHeartbeatState.Tripped:
-                return CommandStatus.RoofHeartbeatTripped
-
-            if to_open:
-                log.info(self._config.log_name, 'Opening roof')
-            else:
-                log.info(self._config.log_name, 'Closing roof')
-
-            fifo_command = 'open' if to_open else 'close'
-            active_state = RoofState.Opening if to_open else RoofState.Closing
-            final_state = RoofState.Open if to_open else RoofState.Closed
-            timeout = self._config.roof_open_timeout if to_open else self._config.roof_close_timeout
-
-            with self._roof_condition:
-                if not fifo_write('Dome.in', fifo_command):
-                    log.error(self._config.log_name, 'Failed to write to Dome.in')
-                    return CommandStatus.Failed
-
-                while True:
-                    self._roof_condition.wait(timeout)
-                    stopped = self._pointing_state == TelState.Absent
-
-                    # Ignore the initial state to <active_state>, which we may or
-                    # may not receive depending on the timing of the telstat loop
-                    if self._roof_state == active_state and not stopped:
-                        continue
-                    break
-
-                if self._roof_state != final_state or stopped:
-                    return CommandStatus.Failed
-
-            return CommandStatus.Succeeded
-
-    @Pyro4.expose
-    def open_roof(self):
-        """Open SuperWASP's roof"""
-        return self.__move_roof(True)
-
-    @Pyro4.expose
-    def close_roof(self):
-        """Close SuperWASP's roof"""
-        return self.__move_roof(False)
-
-    @Pyro4.expose
-    def set_heartbeat_timer(self, timeout):
-        """Enable or disable the auto-close countdown"""
-        if not pyro_client_matches(self._config.control_ips):
-            return CommandStatus.InvalidControlIP
-
-        if not self._config.is_superwasp:
-            return CommandStatus.Failed
-
-        with TryLock(self._roof_command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            if self._pointing_state == TelState.Absent:
-                return CommandStatus.TelescopeNotInitialized
-
-            if self._roof_state == RoofState.Absent:
-                return CommandStatus.Failed
-
-            if timeout != 0 and self._roof_heartbeat_state == RoofHeartbeatState.Tripped:
-                return CommandStatus.RoofHeartbeatTripped
-
-            if timeout < 0 or timeout >= 600:
-                return CommandStatus.RoofHeartbeatInvalid
-
-            with self._roof_condition:
-                if not fifo_write('Dome.in', 'heartbeat {}'.format(timeout)):
-                    log.error(self._config.log_name, 'Failed to write to Dome.in')
-                    return CommandStatus.Failed
-                return CommandStatus.Succeeded
 
     @Pyro4.expose
     def ping(self):

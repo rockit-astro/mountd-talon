@@ -42,9 +42,6 @@ import struct
 # printf("FocusCPos = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, cpos) + 3 * sizeof(MotorInfo));
 # printf("FocusDF = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, df) + 3 * sizeof(MotorInfo));
 # printf("CoverState = %zu\n", offsetof(TelStatShm, coverstate)); // W1m only
-# printf("RoofState = %zu\n", offsetof(TelStatShm, shutterstate)); // SuperWASP only
-# printf("RoofHeartbeatState = %zu\n", offsetof(TelStatShm, domeheartbeatstate)); // SuperWASP only
-# printf("RoofHeartbeatRemaining = %zu\n", offsetof(TelStatShm, domeheartbeatremaining)); // SuperWASP only
 
 
 class ShmOffsets:
@@ -70,9 +67,6 @@ class ShmOffsets:
     FocusCPos = 720
     FocusDF = 704
     CoverState = 828
-    RoofState = 828
-    RoofHeartbeatState = 832
-    RoofHeartbeatRemaining = 836
 
 
 def shm_read_double(shm, offset):

@@ -15,8 +15,6 @@
   "ping_timeout": 5,
   "ha_soft_limits": [-72, 90],
   "dec_soft_limits": [-30, 85],
-  "roof_open_timeout": 60,
-  "roof_close_timeout": 120,
   "park_positions": {
     "zenith": {
       "desc": "park at zenith",

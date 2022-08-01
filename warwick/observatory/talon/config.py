@@ -138,15 +138,6 @@ CONFIG_SCHEMA = {
             'type': 'number',
             'min': 0,
         },
-        # SuperWASP only
-        'roof_open_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
-        'roof_close_timeout': {
-            'type': 'number',
-            'min': 0,
-        }
     },
     'anyOf': [
         {
@@ -163,7 +154,7 @@ CONFIG_SCHEMA = {
                     'enum': ['SuperWASP']
                 }
             },
-            'required': ['roof_open_timeout', 'roof_close_timeout']
+            'required': []
         },
     ]
 }
@@ -196,11 +187,8 @@ class Config:
         self.dec_soft_limits = config_json['dec_soft_limits']
         self.park_positions = config_json['park_positions']
 
-        self.is_superwasp = config_json['telescope'] == 'SuperWASP'
-        if self.is_superwasp:
-            self.roof_open_timeout = config_json['roof_open_timeout']
-            self.roof_close_timeout = config_json['roof_close_timeout']
-        else:
+        self.is_onemetre = config_json['telescope'] == 'W1m'
+        if self.is_onemetre:
             self.focus_tolerance = config_json['focus_tolerance']
             self.focus_timeout = config_json['focus_timeout']
             self.cover_timeout = config_json['cover_timeout']

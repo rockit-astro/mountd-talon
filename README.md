@@ -32,8 +32,6 @@ A configuration file is specified when launching the server, and the `tel` front
   "focus_tolerance": 0.005, # (W1m only) Consider a focus command complete when it is within this many micron of the requested value.
   "security_system_daemon": "onemetre_roomalert", # (W1m only) Daemon to check whether the W1m security system has tripped.
   "security_system_key": "security_system_safe", # (W1m only) Switch name for the security system status.
-  "roof_open_timeout": 0, # (SuperWASP only) Maximum time allowed to fully open the roll-back roof (note: telescoped has its own separate value).
-  "roof_close_timeout": 0, # (SuperWASP only) Maximum time allowed to fully close the roll-back roof (note: telescoped has its own separate value).
   "park_positions": {
     "stow": { # Positions that can be used with 'tel park'.
       "desc": "general purpose park protecting the mirror and instrument", # Description reported by 'tel park'.

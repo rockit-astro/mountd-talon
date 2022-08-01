@@ -1,19 +1,16 @@
 Name:      superwasp-talon-server
-Version:   20211119
+Version:   20220801
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Telescope daemon for the SuperWASP telescope.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-astropy, python3-Pyro4, python3-sysv_ipc, python3-warwick-observatory-common, python3-warwick-observatory-talon, %{?systemd_requires}
+Requires:  python3 python3-astropy python3-Pyro4 python3-sysv_ipc python3-warwick-observatory-common python3-warwick-observatory-talon
 Requires:  superwasp-talon
 
 %description
-Part of the observatory software for the Warwick one-meter and SuperWASP telescopes.
 
-teld interfaces with and wraps the low-level talon daemons and exposes a
-coherant telescope control interface via Pyro.
 %build
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_unitdir}

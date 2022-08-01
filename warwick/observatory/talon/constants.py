@@ -35,9 +35,6 @@ class CommandStatus:
     TelescopeNotHomed = 11
     TelescopeNotUninitialized = 14
 
-    RoofHeartbeatTripped = 15
-    RoofHeartbeatInvalid = 16
-
     OutsideHALimits = 20
     OutsideDecLimits = 21
 
@@ -53,9 +50,6 @@ class CommandStatus:
         10: 'error: telescope has not been initialized',
         11: 'error: telescope has not been homed',
         14: 'error: telescope has already been initialized',
-
-        15: 'error: roof heartbeat monitor has tripped',
-        16: 'error: roof heartbeat timeout must be less than 600s',
 
         20: 'error: requested coordinates outside HA limits',
         21: 'error: requested coordinates outside Dec limits',
@@ -180,72 +174,3 @@ class CoverState:
             return cls._labels[status]
         return 'UNKNOWN'
 
-
-class RoofState:
-    """Talon DShState enum"""
-    Absent, Idle, Opening, Closing, Open, Closed = range(6)
-
-    _labels = {
-        0: 'ABSENT',
-        1: 'UNKNOWN',
-        2: 'OPENING',
-        3: 'CLOSING',
-        4: 'OPEN',
-        5: 'CLOSED',
-    }
-
-    _formats = {
-        0: TFmt.Red + TFmt.Bold,
-        1: TFmt.Red + TFmt.Bold,
-        2: TFmt.Yellow + TFmt.Bold,
-        3: TFmt.Yellow + TFmt.Bold,
-        4: TFmt.Green + TFmt.Bold,
-        5: TFmt.Red + TFmt.Bold,
-    }
-
-    @classmethod
-    def label(cls, status, formatting=False):
-        """
-        Returns a human readable string describing a status
-        Set formatting=true to enable terminal formatting characters
-        """
-        if formatting:
-            if status in cls._formats and status in cls._formats:
-                return cls._formats[status] + cls._labels[status] + TFmt.Clear
-            return TFmt.Red + TFmt.Bold + 'UNKNOWN' + TFmt.Clear
-
-        if status in cls._labels:
-            return cls._labels[status]
-        return 'UNKNOWN'
-
-
-class RoofHeartbeatState:
-    """Talon DHeartbeatState enum"""
-    Disabled, Enabled, Tripped = range(3)
-
-    _labels = {
-        0: 'DISABLED',
-        1: 'ENABLED',
-        2: 'TRIPPED',
-    }
-
-    _formats = {
-        0: TFmt.Red + TFmt.Bold,
-        1: TFmt.Green + TFmt.Bold,
-        2: TFmt.Red + TFmt.Bold,
-    }
-
-    @classmethod
-    def label(cls, status, formatting=False):
-        """
-        Returns a human readable string describing a status
-        Set formatting=true to enable terminal formatting characters
-        """
-        if formatting:
-            if status in cls._formats and status in cls._formats:
-                return cls._formats[status] + cls._labels[status] + TFmt.Clear
-            return TFmt.Red + TFmt.Bold + 'UNKNOWN' + TFmt.Clear
-
-        if status in cls._labels:
-            return cls._labels[status]
-        return 'UNKNOWN'

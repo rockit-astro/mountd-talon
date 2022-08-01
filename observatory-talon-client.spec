@@ -1,12 +1,12 @@
 Name:      observatory-talon-client
-Version:   20220726
+Version:   20220801
 Release:   0
 Url:       https://github.com/warwick-one-metre/teld
 Summary:   Talon telescope client.
 License:   GPL-3.0
 Group:     Unspecified
 BuildArch: noarch
-Requires:  python3, python3-Pyro4, python3-warwick-observatory-common, python3-warwick-observatory-talon
+Requires:  python3 python3-Pyro4 python3-warwick-observatory-common python3-warwick-observatory-talon
 
 %description
 
