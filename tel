@@ -66,7 +66,7 @@ def run_command(command, args):
 
 def operate_cover(config, args):
     """Opens or closes the W1m's mirror covers"""
-    if config.is_superwasp:
+    if not config.is_onemetre:
         return -102
 
     if len(args) == 1 and (args[0] == 'open' or args[0] == 'close'):
@@ -179,7 +179,7 @@ def offset(config, args):
 
 def focus(config, args):
     """Sets the W1m's focus"""
-    if config.is_superwasp:
+    if not config.is_onemetre:
         return -102
 
     if len(args) == 1:
