@@ -2,7 +2,7 @@
   "daemon": "onemetre_telescope",
   "log_name": "teld",
   "control_machines": ["OneMetreDome", "OneMetreTCS"],
-  "security_system_daemon": "onemetre_roomalert",
+  "security_system_daemon": "onemetre_domealert",
   "security_system_key": "security_system_safe",
   "telescope": "W1m",
   "virtual": false,
