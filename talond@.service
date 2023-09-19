@@ -1,5 +1,5 @@
 [Unit]
-Description=Daemon for controlling the Warwick one-metre and SuperWASP telescopes via Pyro.
+Description=Daemon for controlling the Warwick one-metre telescope via Pyro.
 After=syslog.target
 Wants=network-online.target
 After=network-online.target

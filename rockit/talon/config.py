@@ -49,7 +49,7 @@ CONFIG_SCHEMA = {
         },
         'telescope': {
             'type': 'string',
-            'enum': ['SuperWASP', 'W1m'],
+            'enum': ['W1m', 'NGTS'],
         },
         'query_delay': {
             'type': 'number',
@@ -151,7 +151,7 @@ CONFIG_SCHEMA = {
         {
             'properties': {
                 'telescope': {
-                    'enum': ['SuperWASP']
+                    'enum': ['NGTS']
                 }
             },
             'required': []
