@@ -4,19 +4,24 @@ RPMBUILD = rpmbuild --define "_topdir %(pwd)/build" \
         --define "_srcrpmdir %{_topdir}" \
         --define "_sourcedir %(pwd)"
 
-GIT_VERSION = $(shell git name-rev --name-only --tags --no-undefined HEAD 2>/dev/null || echo git-`git rev-parse --short HEAD`)
-ONEMETRE_VERSION=$(shell awk '/Version:/ { print $$2; }' onemetre-talon-server.spec)
-SUPERWASP_VERSION=$(shell awk '/Version:/ { print $$2; }' superwasp-talon-server.spec)
-
 all:
 	mkdir -p build
-	cp teld teld.bak
-	awk '{sub("SOFTWARE_VERSION = .*$$","SOFTWARE_VERSION = \"$(ONEMETRE_VERSION) ($(GIT_VERSION))\""); print $0}' teld.bak > teld
-	${RPMBUILD} -ba onemetre-talon-server.spec
-	awk '{sub("SOFTWARE_VERSION = .*$$","SOFTWARE_VERSION = \"$(SUPERWASP_VERSION) ($(GIT_VERSION))\""); print $0}' teld.bak > teld
-	${RPMBUILD} -ba superwasp-talon-server.spec
-	${RPMBUILD} -ba observatory-talon-client.spec
-	${RPMBUILD} -ba python3-warwick-observatory-talon.spec
+	date --utc +%Y%m%d%H%M%S > VERSION
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-talon.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-talon.spec
+
 	mv build/noarch/*.rpm .
-	rm -rf build
-	mv teld.bak teld
+	rm -rf build VERSION
+
+install:
+	@date --utc +%Y%m%d%H%M%S > VERSION
+	@python3 -m build --outdir .
+	@sudo pip3 install rockit.talon-$$(cat VERSION)-py3-none-any.whl
+	@rm VERSION
+	@sudo cp talond tel /bin/
+	@sudo cp talond@.service /usr/lib/systemd/system/
+	@sudo cp completion/tel /etc/bash_completion.d/
+	@sudo install -d /etc/talond
+	@echo ""
+	@echo "Installed server, client, and service files."
+	@echo "Now copy the relevant json config files to /etc/talond/"

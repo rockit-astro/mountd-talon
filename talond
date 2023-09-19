@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 #
-# This file is part of teld.
+# This file is part of the Robotic Observatory Control Kit (rockit)
 #
-# teld is free software: you can redistribute it and/or modify
+# rockit is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# teld is distributed in the hope that it will be useful,
+# rockit is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with teld.  If not, see <http://www.gnu.org/licenses/>.
+# along with rockit.  If not, see <http://www.gnu.org/licenses/>.
 
 """Daemon for controlling a telescope through Talon/telescoped/csimcd via Pyro"""
 
@@ -31,14 +31,11 @@ from astropy.time import Time
 import astropy.units as u
 import Pyro4
 
-from warwick.observatory.common import log, TryLock
-from warwick.observatory.common.helpers import pyro_client_matches
-from warwick.observatory.talon import (
+from rockit.common import log, TryLock
+from rockit.common.helpers import pyro_client_matches
+from rockit.talon import (
     CommandStatus, TelState, FocusState, CoverState,
     Config, ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
-
-# Set automatically when generating RPM package
-SOFTWARE_VERSION = "UNKNOWN"
 
 
 class TelescopeDaemon:
@@ -305,8 +302,7 @@ class TelescopeDaemon:
         """Returns a dictionary containing the current telescope state"""
         data = {
             'state': self._pointing_state,
-            'state_label': TelState.label(self._pointing_state),
-            'software_version': SOFTWARE_VERSION
+            'state_label': TelState.label(self._pointing_state)
         }
 
         if self._observatory is not None:
@@ -377,7 +373,7 @@ class TelescopeDaemon:
                 except Pyro4.errors.CommunicationError:
                     return CommandStatus.CannotCommunicateWithSecuritySystem
 
-            # systemd starts teld with a clean environment
+            # systemd starts talond with a clean environment
             # load the talon-specific environment just for talon
             talon_env = environment_from_source('/etc/profile.d/talon.sh')
             with open(os.devnull, 'w') as devnull:
@@ -411,7 +407,7 @@ class TelescopeDaemon:
             # Send a shutdown signal to telescoped, which will
             # stop any motion and gracefully exit
             # The main daemon thread will detect the shm data becoming stale
-            # and clean up our internal state in teld
+            # and clean up our internal state in talond
             os.kill(self._talon_pid, signal.SIGINT)
 
             return CommandStatus.Succeeded

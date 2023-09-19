@@ -1,22 +1,20 @@
 ## Talon telescope daemon
 
-`teld` interfaces with and wraps the low-level talon daemons and exposes a
+`talond` interfaces with and wraps the low-level talon daemons and exposes a
 coherent telescope control interface via Pyro.
 
 `tel` is a commandline utility for controlling the telescope.
 
-See [Software Infrastructure](https://github.com/warwick-one-metre/docs/wiki/Software-Infrastructure) for an overview of the software architecture and instructions for developing and deploying the code.
-
 ### Configuration
 
-Configuration is read from json files that are installed by default to `/etc/teld`.
+Configuration is read from json files that are installed by default to `/etc/talond`.
 A configuration file is specified when launching the server, and the `tel` frontend will search this location when launched.
 
 ```python
 {
-  "daemon": "onemetre_telescope", # Run the server as this daemon. Daemon types are registered in `warwick.observatory.common.daemons`.
+  "daemon": "onemetre_telescope", # Run the server as this daemon. Daemon types are registered in `rockit.common.daemons`.
   "log_name": "teld", # The name to use when writing messages to the observatory log.
-  "control_machines": ["OneMetreDome", "OneMetreTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `warwick.observatory.common.IP`.
+  "control_machines": ["OneMetreDome", "OneMetreTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `rockit.common.IP`.
   "telescope": "W1m", # Either W1m or SuperWASP  
   "virtual": false, # Run talon's telescoped with simulated hardware.
   "query_delay": 1, # Delay between shared memory queries.
@@ -46,21 +44,16 @@ A configuration file is specified when launching the server, and the `tel` front
 
 The automated packaging scripts will push 4 RPM packages to the observatory package repository:
 
-| Package           | Description |
-| ----------------- | ------ |
-| onemetre-talon-server | Contains the `teld` server and configuration for the W1m telescope. |
-| superwasp-talon-server | Contains the `teld` server and configuration for SuperWASP. |
-| observatory-talon-client | Contains the `tel` commandline utility for controlling the telescope server. |
-| python3-warwick-observatory-talon | Contains the python module with shared code. |
-
-`onemetre-talon-server` and `observatory-talon-client` should be installed on the `onemetre-tcs` machine.
-`superwasp-talon-server` and `observatory-talon-client` should be installed on the `wasp-tcs` machine.
+| Package                           | Description                                                                  |
+|-----------------------------------|------------------------------------------------------------------------------|
+| onemetre-talon-server             | Contains the `talond` server and configuration for the W1m telescope.        |
+| observatory-talon-client          | Contains the `tel` commandline utility for controlling the telescope server. |
+| python3-warwick-observatory-talon | Contains the python module with shared code.                                 |
 
 After installing packages, the systemd service should be enabled:
 
 ```
-sudo systemctl enable teld@<config>
-sudo systemctl start teld@<config>
+sudo systemctl enable --now talond@<config>
 ```
 
 where `config` is the name of the json file for the appropriate telescope.
@@ -70,7 +63,7 @@ Now open a port in the firewall:
 sudo firewall-cmd --zone=public --add-port=<port>/tcp --permanent
 sudo firewall-cmd --reload
 ```
-where `port` is the port defined in `warwick.observatory.common.daemons` for the daemon specified in the config.
+where `port` is the port defined in `rockit.common.daemons` for the daemon specified in the config.
 
 ### Upgrading Installation
 
@@ -83,14 +76,13 @@ sudo yum update
 
 The daemon should then be restarted to use the newly installed code:
 ```
-sudo systemctl stop teld@<config>
-sudo systemctl start teld@<config>
+sudo systemctl restart talond@<config>
 ```
 
 ### Testing Locally
 
 The server and client can be run directly from a git clone:
 ```
-./teld onemetre.json
-TELD_CONFIG_PATH=./onemetre.json ./tel status
+./talond onemetre.json
+TALOND_CONFIG_PATH=./onemetre.json ./tel status
 ```
