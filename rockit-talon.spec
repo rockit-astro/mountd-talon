@@ -25,7 +25,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/talond/
 %package server
 Summary:  Talon mount server
 Group:    Unspecified
-Requires: python3-rockit-talon python3-astropy python3-sysv_ipc talon
+Requires: python3-rockit-talon python3-astropy python3-sysv_ipc rockit-talon
 %description server
 
 %files server
