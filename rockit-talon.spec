@@ -21,6 +21,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/talond/
 %{__install} %{_sourcedir}/completion/tel %{buildroot}/etc/bash_completion.d/tel
 
 %{__install} %{_sourcedir}/onemetre.json %{buildroot}%{_sysconfdir}/talond/
+%{__install} %{_sourcedir}/ngts_m06.json %{buildroot}%{_sysconfdir}/talond/
 
 %package server
 Summary:  Talon mount server
@@ -53,5 +54,14 @@ Group:   Unspecified
 %files data-onemetre
 %defattr(0644,root,root,-)
 %{_sysconfdir}/talond/onemetre.json
+
+%package data-ngts-m06
+Summary: Talon mount configuration for NGTS M06
+Group:   Unspecified
+%description data-ngts-m06
+
+%files data-ngts-m06
+%defattr(0644,root,root,-)
+%{_sysconfdir}/talond/ngts_m06.json
 
 %changelog

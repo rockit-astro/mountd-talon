@@ -1,0 +1,27 @@
+{
+  "daemon": "ngts_m06_telescope",
+  "log_name": "teld@ngts_m06",
+  "control_machines": ["NGTSDASNUC"],
+  "telescope": "NGTS",
+  "virtual": false,
+  "query_delay": 1,
+  "initialization_timeout": 60,
+  "slew_timeout": 120,
+  "homing_timeout": 120,
+  "limit_timeout": 120,
+  "ping_timeout": 5,
+  "ha_soft_limits": [-75, 75],
+  "dec_soft_limits": [-89, 30],
+  "park_positions": {
+    "stow": {
+      "desc": "general purpose park protecting the mirror and instrument",
+      "alt": 0,
+      "az": 180
+    },
+    "zenith": {
+      "desc": "park at zenith for maintenance tasks",
+      "alt": 90,
+      "az": 0
+    }
+  }
+}
