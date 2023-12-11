@@ -100,20 +100,16 @@ CONFIG_SCHEMA = {
             'additionalProperties': {
                 'type': 'object',
                 'additionalProperties': False,
-                'required': ['desc', 'alt', 'az'],
+                'required': ['desc', 'ha_enc', 'dec_enc'],
                 'properties': {
                     'desc': {
                         'type': 'string',
                     },
-                    'alt': {
-                        'type': 'number',
-                        'min': 0,
-                        'max': 90
+                    'ha_enc': {
+                        'type': 'integer'
                     },
-                    'az': {
-                        'type': 'number',
-                        'min': 0,
-                        'max': 360
+                    'dec_enc': {
+                        'type': 'integer'
                     }
                 }
             }

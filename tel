@@ -88,8 +88,7 @@ def park(config, args):
 
         ping_teld(config)
         with config.daemon.connect(timeout=0) as teld:
-            pos = config.park_positions.get(args[0])
-            return teld.slew_altaz(pos['alt'], pos['az'])
+            return teld.park(args[0])
 
     print('usage: {} park <position>'.format(SCRIPT_NAME))
     print()

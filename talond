@@ -737,6 +737,32 @@ class TelescopeDaemon:
             return CommandStatus.Succeeded
 
     @Pyro4.expose
+    def park(self, position_name):
+        """Parks the telescope in a named position"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if not self._axes_homed:
+                return CommandStatus.TelescopeNotHomed
+
+            position = self._config.park_positions.get(position_name, None)
+            if position is None:
+                return CommandStatus.Failed
+
+            if not self.__reset_pointing_offset():
+                return CommandStatus.Failed
+
+            command = "park {} {}".format(position['ha_enc'], position['dec_enc'])
+            if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
+                return CommandStatus.Failed
+
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
     def telescope_focus(self, focus_um):
         """Moves the W1m's focus to a specified position"""
         if not pyro_client_matches(self._config.control_ips):
