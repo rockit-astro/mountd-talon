@@ -237,12 +237,7 @@ class TelescopeDaemon:
 
     def __reset_pointing_offset(self):
         """Resets the pointing xdelta"""
-        if self._config.is_onemetre:
-            fifo_command = 'xdelta(0,0)'
-        else:
-            fifo_command = 'Offset 0,0'
-            
-        if not fifo_write('Tel.in', fifo_command):
+        if not fifo_write('Tel.in', 'xdelta(0,0)'):
             log.error(self._config.log_name, 'Failed to write to Tel.in')
             return False
 
@@ -702,16 +697,10 @@ class TelescopeDaemon:
                 offset_ra = self._offset_ra + ra_delta_deg * u.deg
                 offset_dec = self._offset_dec + dec_delta_deg * u.deg
 
-                if self._config.is_onemetre:
-                    # xdelta expects angles in degrees
-                    fifo_command = 'xdelta({},{})'.format(
-                        offset_ra.to_value(u.deg),
-                        offset_dec.to_value(u.deg))
-                else:
-                    # Offset expects angles in arcseconds
-                    fifo_command = 'Offset {},{}'.format(
-                        offset_ra.to_value(u.arcsecond),
-                        offset_dec.to_value(u.arcsecond))
+                # xdelta expects angles in degrees
+                fifo_command = 'xdelta({},{})'.format(
+                    offset_ra.to_value(u.deg),
+                    offset_dec.to_value(u.deg))
 
                 if not fifo_write('Tel.in', fifo_command):
                     log.error(self._config.log_name, 'Failed to write to Tel.in')
