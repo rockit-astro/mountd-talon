@@ -1,9 +1,9 @@
-Name:           python3-rockit-talon
+Name:           python3-rockit-mount-talon
 Version:        %{_version}
 Release:        1
 License:        GPL3
 Summary:        Common backend code for the Talon mount daemon.
-Url:            https://github.com/rockit-astro/talond
+Url:            https://github.com/rockit-astro/mountd-talon
 BuildArch:      noarch
 BuildRequires:  python3-devel
 

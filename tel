@@ -23,7 +23,7 @@ import sys
 import Pyro4
 from astropy.coordinates import Angle, SkyCoord
 import astropy.units as u
-from rockit.talon import CommandStatus, TelState, CoverState, Config
+from rockit.mount.talon import CommandStatus, TelState, CoverState, Config
 from rockit.common import TFmt
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
@@ -33,15 +33,15 @@ sys.excepthook = Pyro4.util.excepthook
 
 def run_command(command, args):
     """Runs a daemon command, handling cancellation and error messages"""
-    if 'TALOND_CONFIG_PATH' in os.environ:
-        config = Config(os.environ['TALOND_CONFIG_PATH'])
+    if 'MOUNTD_CONFIG_PATH' in os.environ:
+        config = Config(os.environ['MOUNTD_CONFIG_PATH'])
     else:
-        # Load the config file defined in the TALOND_CONFIG_PATH environment variable or from the
-        # default system location (/etc/talond/). Exit with an error if zero or multiple are found.
-        files = glob.glob("/etc/talond/*.json")
+        # Load the config file defined in the MOUNTD_CONFIG_PATH environment variable or from the
+        # default system location (/etc/mountd/). Exit with an error if zero or multiple are found.
+        files = glob.glob("/etc/mountd/*.json")
         if len(files) != 1:
             print('error: failed to guess the default config file. ' +
-                  'Run as TALOND_CONFIG_PATH=/path/to/config.json tel <command> [<args>]')
+                  'Run as MOUNTD_CONFIG_PATH=/path/to/config.json tel <command> [<args>]')
             return 1
 
         config = Config(files[0])
@@ -78,6 +78,7 @@ def operate_cover(config, args):
 
     print('usage: {} covers [open|close]'.format(SCRIPT_NAME))
     return -1
+
 
 def park(config, args):
     """Slews the telescope to a named park position"""

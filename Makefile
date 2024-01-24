@@ -7,8 +7,8 @@ RPMBUILD = rpmbuild --define "_topdir %(pwd)/build" \
 all:
 	mkdir -p build
 	date --utc +%Y%m%d%H%M%S > VERSION
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-talon.spec
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-talon.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-mount-talon.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-mount-talon.spec
 
 	mv build/noarch/*.rpm .
 	rm -rf build VERSION
@@ -16,12 +16,12 @@ all:
 install:
 	@date --utc +%Y%m%d%H%M%S > VERSION
 	@python3 -m build --outdir .
-	@sudo pip3 install rockit.talon-$$(cat VERSION)-py3-none-any.whl
+	@sudo pip3 install rockit.mount.talon-$$(cat VERSION)-py3-none-any.whl
 	@rm VERSION
-	@sudo cp talond tel /bin/
-	@sudo cp talond@.service /usr/lib/systemd/system/
+	@sudo cp talon_mountd tel /bin/
+	@sudo cp talon_mountd@.service /usr/lib/systemd/system/
 	@sudo cp completion/tel /etc/bash_completion.d/
-	@sudo install -d /etc/talond
+	@sudo install -d /etc/mountd
 	@echo ""
 	@echo "Installed server, client, and service files."
-	@echo "Now copy the relevant json config files to /etc/talond/"
+	@echo "Now copy the relevant json config files to /etc/mountd/"

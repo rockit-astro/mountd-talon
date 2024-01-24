@@ -7,7 +7,7 @@ After=network-online.target
 [Service]
 Restart=on-failure
 Type=simple
-ExecStart=/usr/bin/env python3 -u /usr/bin/talond /etc/talond/%i.json
+ExecStart=/usr/bin/env python3 -u /usr/bin/talon_mountd /etc/mountd/%i.json
 
 [Install]
 WantedBy=multi-user.target

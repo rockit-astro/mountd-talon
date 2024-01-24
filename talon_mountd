@@ -33,7 +33,7 @@ import Pyro4
 
 from rockit.common import log, TryLock
 from rockit.common.helpers import pyro_client_matches
-from rockit.talon import (
+from rockit.mount.talon import (
     CommandStatus, TelState, FocusState, CoverState,
     Config, ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
 

@@ -1,8 +1,8 @@
-Name:      rockit-talon
+Name:      rockit-mount-talon
 Version:   %{_version}
 Release:   1
 Summary:   Talon mount control
-Url:       https://github.com/rockit-astro/talond
+Url:       https://github.com/rockit-astro/mountd-talon
 License:   GPL-3.0
 BuildArch: noarch
 
@@ -13,32 +13,32 @@ BuildArch: noarch
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_unitdir}
 mkdir -p %{buildroot}/etc/bash_completion.d
-mkdir -p %{buildroot}%{_sysconfdir}/talond/
+mkdir -p %{buildroot}%{_sysconfdir}/mountd/
 
 %{__install} %{_sourcedir}/tel %{buildroot}%{_bindir}
-%{__install} %{_sourcedir}/talond %{buildroot}%{_bindir}
-%{__install} %{_sourcedir}/talond@.service %{buildroot}%{_unitdir}
+%{__install} %{_sourcedir}/talon_mountd %{buildroot}%{_bindir}
+%{__install} %{_sourcedir}/talon_mountd@.service %{buildroot}%{_unitdir}
 %{__install} %{_sourcedir}/completion/tel %{buildroot}/etc/bash_completion.d/tel
 
-%{__install} %{_sourcedir}/onemetre.json %{buildroot}%{_sysconfdir}/talond/
-%{__install} %{_sourcedir}/ngts_m06.json %{buildroot}%{_sysconfdir}/talond/
+%{__install} %{_sourcedir}/onemetre.json %{buildroot}%{_sysconfdir}/mountd/
+%{__install} %{_sourcedir}/ngts_m06.json %{buildroot}%{_sysconfdir}/mountd/
 
 %package server
 Summary:  Talon mount server
 Group:    Unspecified
-Requires: python3-rockit-talon python3-astropy python3-sysv_ipc rockit-talon
+Requires: python3-rockit-mount-talon python3-astropy python3-sysv_ipc rockit-talon
 %description server
 
 %files server
 %defattr(0755,root,root,-)
-%{_bindir}/talond
+%{_bindir}/talon_mountd
 %defattr(0644,root,root,-)
-%{_unitdir}/talond@.service
+%{_unitdir}/talon_mountd@.service
 
 %package client
 Summary:  Talon mount client
 Group:    Unspecified
-Requires: python3-rockit-talon python3-astropy
+Requires: python3-rockit-mount-talon python3-astropy
 %description client
 
 %files client
@@ -53,7 +53,7 @@ Group:   Unspecified
 
 %files data-onemetre
 %defattr(0644,root,root,-)
-%{_sysconfdir}/talond/onemetre.json
+%{_sysconfdir}/mountd/onemetre.json
 
 %package data-ngts-m06
 Summary: Talon mount configuration for NGTS M06
@@ -62,6 +62,6 @@ Group:   Unspecified
 
 %files data-ngts-m06
 %defattr(0644,root,root,-)
-%{_sysconfdir}/talond/ngts_m06.json
+%{_sysconfdir}/mountd/ngts_m06.json
 
 %changelog

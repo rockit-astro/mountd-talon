@@ -1,13 +1,13 @@
 ## Talon telescope daemon
 
-`talond` interfaces with and wraps the low-level talon daemons and exposes a
+`talon_mountd` interfaces with and wraps the low-level talon daemons and exposes a
 coherent telescope control interface via Pyro.
 
 `tel` is a commandline utility for controlling the telescope.
 
 ### Configuration
 
-Configuration is read from json files that are installed by default to `/etc/talond`.
+Configuration is read from json files that are installed by default to `/etc/mountd`.
 A configuration file is specified when launching the server, and the `tel` frontend will search this location when launched.
 
 ```python
@@ -46,14 +46,16 @@ The automated packaging scripts will push 4 RPM packages to the observatory pack
 
 | Package                           | Description                                                                  |
 |-----------------------------------|------------------------------------------------------------------------------|
-| onemetre-talon-server             | Contains the `talond` server and configuration for the W1m telescope.        |
-| observatory-talon-client          | Contains the `tel` commandline utility for controlling the telescope server. |
-| python3-warwick-observatory-talon | Contains the python module with shared code.                                 |
+| rockit-mount-talon-server         | Contains the `talond` server and configuration for the W1m telescope.        |
+| rockit-mount-talon-client         | Contains the `tel` commandline utility for controlling the telescope server. |
+| rockit-mount-talon-data-onemetre  | Contains the json configuration files for the W1m telescope.                 |
+| rockit-mount-talon-data-ngts-m06  | Contains the json configuration files for a NGTS telescope.                  |
+| python3-rockit-mount-talon        | Contains the python module with shared code.                                 |
 
 After installing packages, the systemd service should be enabled:
 
 ```
-sudo systemctl enable --now talond@<config>
+sudo systemctl enable --now talon_mountd@<config>
 ```
 
 where `config` is the name of the json file for the appropriate telescope.
@@ -76,13 +78,13 @@ sudo yum update
 
 The daemon should then be restarted to use the newly installed code:
 ```
-sudo systemctl restart talond@<config>
+sudo systemctl restart talon_mountd@<config>
 ```
 
 ### Testing Locally
 
 The server and client can be run directly from a git clone:
 ```
-./talond onemetre.json
-TALOND_CONFIG_PATH=./onemetre.json ./tel status
+./talon_mountd onemetre.json
+MOUNTD_CONFIG_PATH=./onemetre.json ./tel status
 ```
