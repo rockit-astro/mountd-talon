@@ -213,24 +213,25 @@ class TelescopeDaemon:
                         self.__update_state_from_talon_shm()
 
                         if self._last_pointing_idx != self._pointing_idx:
-                            print('Pointing: {} ({}) -> {} ({})'.format(
-                                TelState.label(self._last_pointing_state), self._last_pointing_idx,
-                                TelState.label(self._pointing_state), self._pointing_idx))
+                            last = TelState.label(self._last_pointing_state)
+                            label = TelState.label(self._pointing_state)
+                            print(f'Pointing: {last} ({self._last_pointing_idx}) -> {label} ({self._pointing_idx})')
                             self._pointing_condition.notify_all()
 
                         if self._last_cover_state != self._cover_state:
-                            print('Cover: ' + CoverState.label(self._last_cover_state) + ' -> ' +
-                                  CoverState.label(self._cover_state))
+                            last = CoverState.label(self._last_cover_state)
+                            label = CoverState.label(self._cover_state)
+                            print(f'Cover: {last} -> {label}')
                             self._cover_condition.notify_all()
 
                         if self._last_telescope_focus_um != self._telescope_focus_um:
-                            print('tel focus: {:2f} -> {:2f}'.format(
-                                self._last_telescope_focus_um, self._telescope_focus_um))
+                            print(f'tel focus: {self._last_telescope_focus_um:2f} -> {self._telescope_focus_um:2f}')
                             self._telescope_focus_condition.notify_all()
 
                         if self._telescope_focus_state != self._last_telescope_focus_state:
-                            print('Focus: ' + FocusState.label(self._last_telescope_focus_state) +
-                                  ' -> ' + FocusState.label(self._telescope_focus_state))
+                            last = FocusState.label(self._last_telescope_focus_state)
+                            label = FocusState.label(self._telescope_focus_state)
+                            print(f'Focus: {last} -> {label}')
                             self._telescope_focus_condition.notify_all()
 
             time.sleep(self._config.query_delay)
@@ -527,19 +528,18 @@ class TelescopeDaemon:
             dec = coords.dec
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to alt {} az {}; ha {} outside limit ({}, {})'.format(
-                    alt_deg, az_deg, ha, self._ha_negative_limit, self._ha_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to alt {alt_deg} az {az_deg}; ' +
+                          f'ha {ha} outside limit ({self._ha_negative_limit}, {self._ha_positive_limit})')
                 return CommandStatus.OutsideHALimits
 
             if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
-                log.error(self._config.log_name, 'failed to move to alt {} az {}; dec {} outside limit ({}, {})'.format(
-                    alt_deg, az_deg, dec, self._dec_negative_limit, self._dec_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to alt {alt_deg} az {az_deg}; ' +
+                          f'dec {dec} outside limit ({self._dec_negative_limit}, {self._dec_positive_limit})')
                 return CommandStatus.OutsideDecLimits
 
-            command = 'Alt: {} Az: {}'.format(
-                (alt_deg * u.deg).to_value(u.rad),
-                (az_deg * u.deg).to_value(u.rad))
-
+            command = f'Alt: {(alt_deg * u.deg).to_value(u.rad)} Az: {(az_deg * u.deg).to_value(u.rad)}'
             if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
@@ -566,19 +566,18 @@ class TelescopeDaemon:
             dec = dec_deg * u.deg
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ha {} dec {}; ha {} outside limit ({}, {})'.format(
-                    ha_deg, dec_deg, dec_deg, self._ha_negative_limit, self._ha_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ha {ha_deg} dec {dec_deg}; ' +
+                          f'ha {ha_deg} outside limit ({self._ha_negative_limit}, {self._ha_positive_limit})')
                 return CommandStatus.OutsideHALimits
 
             if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ha {} dec {}; dec {} outside limit ({}, {})'.format(
-                    ha_deg, dec_deg, dec_deg, self._dec_negative_limit, self._dec_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ha {ha_deg} dec {dec_deg}; ' +
+                          f'dec {dec_deg} outside limit ({self._dec_negative_limit}, {self._dec_positive_limit})')
                 return CommandStatus.OutsideDecLimits
 
-            command = 'HA: {} Dec: {}'.format(
-                ha.to_value(u.rad),
-                dec.to_value(u.rad))
-
+            command = f'HA: {ha.to_value(u.rad)} Dec: {dec.to_value(u.rad)}'
             if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
@@ -607,19 +606,18 @@ class TelescopeDaemon:
             dec = coords.dec.to(u.deg)
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec {}; ha {} outside limit ({}, {})'.format(
-                    ra_deg, dec_deg, dec_deg, self._ha_negative_limit, self._ha_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ra {ra_deg} dec {dec_deg}; ' +
+                          f'ha {ha} outside limit ({self._ha_negative_limit}, {self._ha_positive_limit})')
                 return CommandStatus.OutsideHALimits
 
             if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
-                    ra_deg, dec_deg, dec_deg, self._dec_negative_limit, self._dec_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ra {ra_deg} dec {dec_deg}; ' +
+                          f'dec {dec_deg} outside limit ({self._dec_negative_limit}, {self._dec_positive_limit})')
                 return CommandStatus.OutsideDecLimits
 
-            command = 'HA: {} Dec: {}'.format(
-                ha.to_value(u.rad),
-                dec.to_value(u.rad))
-
+            command = f'HA: {ha.to_value(u.rad)} Dec: {dec.to_value(u.rad)}'
             if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
@@ -649,28 +647,24 @@ class TelescopeDaemon:
             dec = coords.dec.to(u.deg)
 
             if ha < self._ha_negative_limit or ha > self._ha_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec {}; ha {} outside limit ({}, {})'.format(
-                    ra, dec, ha, self._ha_negative_limit, self._ha_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ra {ra} dec {dec}; ' +
+                          f'ha {ha} outside limit ({self._ha_negative_limit}, {self._ha_positive_limit})')
                 return CommandStatus.OutsideHALimits
 
             if dec < self._dec_negative_limit or dec > self._dec_positive_limit:
-                log.error(self._config.log_name, 'failed to move to ra {} dec {}; dec {} outside limit ({}, {})'.format(
-                    ra, dec, dec, self._dec_negative_limit, self._dec_positive_limit))
+                log.error(self._config.log_name,
+                          f'failed to move to ra {ra} dec {dec}; ' +
+                          f'dec {dec} outside limit ({self._dec_negative_limit}, {self._dec_positive_limit})')
                 return CommandStatus.OutsideDecLimits
 
             # Slewing is much faster than tracking
-            command = 'HA: {} Dec: {}'.format(
-                ha.to_value(u.rad),
-                dec.to_value(u.rad))
-
+            command = f'HA: {ha.to_value(u.rad)} Dec: {dec.to_value(u.rad)}'
             if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
             # Do the final adjustment and start tracking
-            command = 'RA: {} Dec: {} Epoch: 2000'.format(
-                ra.to_value(u.rad),
-                dec.to_value(u.rad))
-
+            command = f'RA: {ra.to_value(u.rad)} Dec: {dec.to_value(u.rad)} Epoch: 2000'
             if not self.__point(command, TelState.Hunting, TelState.Tracking, self._config.slew_timeout):
                 return CommandStatus.Failed
 
@@ -698,10 +692,7 @@ class TelescopeDaemon:
                 offset_dec = self._offset_dec + dec_delta_deg * u.deg
 
                 # xdelta expects angles in degrees
-                fifo_command = 'xdelta({},{})'.format(
-                    offset_ra.to_value(u.deg),
-                    offset_dec.to_value(u.deg))
-
+                fifo_command = f'xdelta({offset_ra.to_value(u.deg)},{offset_dec.to_value(u.deg)})'
                 if not fifo_write('Tel.in', fifo_command):
                     log.error(self._config.log_name, 'Failed to write to Tel.in')
                     return CommandStatus.Failed
@@ -711,10 +702,10 @@ class TelescopeDaemon:
             elif self._pointing_state == TelState.Stopped:
                 # Otherwise just slew to the updated position
                 with self._talon_shm_lock:
-                    command = 'HA: {} Dec: {}'.format(
-                        (self._current_ha_apparent + ra_delta_deg * u.deg).to_value(u.rad),
-                        (self._current_dec_apparent + dec_delta_deg * u.deg).to_value(u.rad))
+                    offset_ha_rad = (self._current_ha_apparent + ra_delta_deg * u.deg).to_value(u.rad)
+                    offset_dec_rad = (self._current_dec_apparent + dec_delta_deg * u.deg).to_value(u.rad)
 
+                command = f'HA: {offset_ha_rad} Dec: {offset_dec_rad}'
                 if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                     return CommandStatus.Failed
 
@@ -745,7 +736,7 @@ class TelescopeDaemon:
             if not self.__reset_pointing_offset():
                 return CommandStatus.Failed
 
-            command = "park {} {}".format(position['ha_enc'], position['dec_enc'])
+            command = f'park {position["ha_enc"]} {position["dec_enc"]}'
             if not self.__point(command, TelState.Slewing, TelState.Stopped, self._config.slew_timeout):
                 return CommandStatus.Failed
 
