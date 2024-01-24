@@ -67,6 +67,9 @@ class TelescopeDaemon:
         self._current_az = 0 * u.rad
         self._current_lst = 0 * u.rad
 
+        self._current_ha_raw_encoder = 0
+        self._current_dec_raw_encoder = 0
+
         self._last_pointing_state = TelState.Absent
         self._pointing_state = TelState.Absent
         self._last_pointing_idx = 0
@@ -143,6 +146,9 @@ class TelescopeDaemon:
                     focus_pos = shm_read_double(self._talon_shm, ShmOffsets.FocusCPos)
                     focus_df = shm_read_double(self._talon_shm, ShmOffsets.FocusDF)
 
+                    self._current_ha_raw_encoder = shm_read_int(self._talon_shm, ShmOffsets.RARawEncoder)
+                    self._current_dec_raw_encoder = shm_read_int(self._talon_shm, ShmOffsets.DecRawEncoder)
+
                     self._last_telescope_focus_state = self._telescope_focus_state
                     self._telescope_focus_state = FocusState.Absent
                     if focus_flags & 0x01 == 1:
@@ -160,7 +166,7 @@ class TelescopeDaemon:
                     self._telescope_focus_um = focus_step * focus_pos / (2 * math.pi * focus_df)
 
                     self._axes_homed = ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0 and \
-                                       (focus_flags & 0x01 == 0 or focus_flags & 0x200 != 0)
+                        (focus_flags & 0x01 == 0 or focus_flags & 0x200 != 0)
 
         except sysv_ipc.ExistentialError:
             # Talon has not been initialized since last boot
@@ -333,6 +339,9 @@ class TelescopeDaemon:
 
                     'alt': self._current_alt.to_value(u.deg),
                     'az': self._current_az.to_value(u.deg),
+
+                    'ha_raw_encoder': self._current_ha_raw_encoder,
+                    'dec_raw_encoder': self._current_dec_raw_encoder,
 
                     'moon_separation': get_moon(timenow).separation(pointing).to_value(u.deg),
                     'sun_separation': get_sun(timenow).separation(pointing).to_value(u.deg),

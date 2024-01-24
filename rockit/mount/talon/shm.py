@@ -61,7 +61,9 @@ class ShmOffsets:
     TelState = 816
     TelStateIdx = 820
     RAFlags = 265
+    RARawEncoder = 376
     DecFlags = 385
+    DecRawEncoder = 496
     FocusFlags = 625
     FocusStep = 628
     FocusCPos = 720
