@@ -23,7 +23,6 @@ A configuration file is specified when launching the server, and the `tel` front
   "focus_timeout": 60, # Maximum time allowed for any focus adjustment (note: telescoped has its own separate value).
   "homing_timeout": 120, # Maximum time allowed for each axis homing command (note: telescoped has its own separate value).
   "limit_timeout": 120, # Maximum time allowed for each axis limit command (note: telescoped has its own separate value).
-  "cover_timeout": 2.5, # Maximum time allowed for telescoped to acknowledge a cover open/close command.
   "ping_timeout": 5, # Maximum time allowed to acknowledge a ping command.
   "ha_soft_limits": [-72, 90], # Allowed hour angle range in degrees (pre-filters bogus pointings with a more graceful error than talon failing)
   "dec_soft_limits": [-30, 85], # Allowed declination range in degrees (pre-filters bogus pointings with a more graceful error than talon failing)

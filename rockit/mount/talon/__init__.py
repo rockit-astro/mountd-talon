@@ -17,5 +17,5 @@
 """talond common code"""
 
 from .config import Config
-from .constants import CommandStatus, TelState, FocusState, CoverState
+from .constants import CommandStatus, TelState, FocusState
 from .shm import ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort

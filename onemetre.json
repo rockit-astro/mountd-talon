@@ -13,7 +13,6 @@
   "focus_timeout": 60,
   "homing_timeout": 120,
   "limit_timeout": 120,
-  "cover_timeout": 2.5,
   "ping_timeout": 5,
   "ha_soft_limits": [-72, 90],
   "dec_soft_limits": [-30, 85],

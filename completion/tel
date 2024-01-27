@@ -4,12 +4,9 @@ _tel()
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="status covers roof park slew track offset focus stop cal init kill"
+    opts="status park slew track offset focus stop cal init kill"
 
     case "${prev}" in
-        covers|roof)
-            opts="open close"
-            ;;
         park)
             opts=$(tel list-parks ${prev})
             ;;

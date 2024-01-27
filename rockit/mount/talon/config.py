@@ -129,11 +129,7 @@ CONFIG_SCHEMA = {
         'focus_timeout': {
             'type': 'number',
             'min': 0,
-        },
-        'cover_timeout': {
-            'type': 'number',
-            'min': 0,
-        },
+        }
     },
     'anyOf': [
         {
@@ -142,7 +138,7 @@ CONFIG_SCHEMA = {
                     'enum': ['W1m']
                 }
             },
-            'required': ['security_system_daemon', 'security_system_key', 'focus_tolerance', 'focus_timeout', 'cover_timeout']
+            'required': ['security_system_daemon', 'security_system_key', 'focus_tolerance', 'focus_timeout']
         },
         {
             'properties': {
@@ -187,7 +183,6 @@ class Config:
         if self.is_onemetre:
             self.focus_tolerance = config_json['focus_tolerance']
             self.focus_timeout = config_json['focus_timeout']
-            self.cover_timeout = config_json['cover_timeout']
 
             self.security_system_daemon = getattr(daemons, config_json['security_system_daemon'])
             self.security_system_key = config_json['security_system_key']

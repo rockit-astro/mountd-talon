@@ -23,7 +23,7 @@ import sys
 import Pyro4
 from astropy.coordinates import Angle, SkyCoord
 import astropy.units as u
-from rockit.mount.talon import CommandStatus, TelState, CoverState, Config
+from rockit.mount.talon import CommandStatus, TelState, Config
 from rockit.common import TFmt
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
@@ -62,22 +62,6 @@ def run_command(command, args):
     if ret not in (0, -1):
         print(CommandStatus.message(ret))
     return ret
-
-
-def operate_cover(config, args):
-    """Opens or closes the W1m's mirror covers"""
-    if not config.is_onemetre:
-        return -102
-
-    if len(args) == 1 and (args[0] == 'open' or args[0] == 'close'):
-        ping_teld(config)
-        with config.daemon.connect(timeout=0) as teld:
-            if args[0] == 'open':
-                return teld.open_covers()
-            return teld.close_covers()
-
-    print(f'usage: {SCRIPT_NAME} covers [open|close]')
-    return -1
 
 
 def park(config, args):
@@ -222,9 +206,6 @@ def status(config, _):
     if data['state'] == 0:
         return 0
 
-    if 'cover_state' in data:
-        print(f'   Covers are {CoverState.label(data["cover_state"], formatting=True)}')
-
     if data['axes_homed']:
         coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit=u.deg)
         ra_desc = coords.ra.to(u.hourangle).to_string(sep=':', precision=2)
@@ -303,7 +284,6 @@ def print_usage():
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
-    print('   covers    open or close the mirror covers')
     print('   park      park the telescope in a named position')
     print()
     print('observing commands:')
@@ -311,7 +291,6 @@ def print_usage():
     print('   horizon   slew the telescope to a given Alt, Az')
     print('   track     slew the telescope to a given RA, Dec and track the target')
     print('   offset    offset the telescope by a given RA, Dec')
-
     print('   focus     adjust the telescope focus')
     print('   stop      immediately stop any telescope movement')
     print()
@@ -324,7 +303,6 @@ def print_usage():
 
 if __name__ == '__main__':
     commands = {
-        'covers': operate_cover,
         'park': park,
         'slew': slew,
         'horizon': horizon,

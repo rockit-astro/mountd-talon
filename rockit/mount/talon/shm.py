@@ -41,7 +41,6 @@ import struct
 # printf("FocusStep = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, step) + 3 * sizeof(MotorInfo));
 # printf("FocusCPos = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, cpos) + 3 * sizeof(MotorInfo));
 # printf("FocusDF = %zu\n", offsetof(TelStatShm, minfo) + offsetof(MotorInfo, df) + 3 * sizeof(MotorInfo));
-# printf("CoverState = %zu\n", offsetof(TelStatShm, coverstate)); // W1m only
 
 
 class ShmOffsets:
@@ -66,7 +65,6 @@ class ShmOffsets:
     FocusStep = 628
     FocusCPos = 720
     FocusDF = 704
-    CoverState = 828
 
 
 def shm_read_double(shm, offset):

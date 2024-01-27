@@ -34,7 +34,7 @@ import Pyro4
 from rockit.common import log, TryLock
 from rockit.common.helpers import pyro_client_matches
 from rockit.mount.talon import (
-    CommandStatus, TelState, FocusState, CoverState,
+    CommandStatus, TelState, FocusState,
     Config, ShmOffsets, shm_read_double, shm_read_int, shm_read_ushort)
 
 
@@ -50,7 +50,6 @@ class TelescopeDaemon:
         # Only one command may be active at a time (except for stop)
         self._command_lock = threading.Lock()
         self._pointing_condition = threading.Condition()
-        self._cover_condition = threading.Condition()
         self._telescope_focus_condition = threading.Condition()
         self._force_stopped = False
 
@@ -72,9 +71,6 @@ class TelescopeDaemon:
         self._last_pointing_idx = 0
         self._pointing_idx = 0
         self._axes_homed = False
-
-        self._last_cover_state = CoverState.Absent
-        self._cover_state = CoverState.Absent
 
         self._last_telescope_focus_state = FocusState.Absent
         self._telescope_focus_state = FocusState.Absent
@@ -119,12 +115,6 @@ class TelescopeDaemon:
 
                     self._pointing_state = pointing_state
                     self._pointing_idx = shm_read_int(self._talon_shm, ShmOffsets.TelStateIdx)
-
-                    if self._config.is_onemetre:
-                        self._last_cover_state = self._cover_state
-                        self._cover_state = shm_read_int(self._talon_shm, ShmOffsets.CoverState)
-                    else:
-                        self._last_cover_state = self._cover_state = CoverState.Absent
 
                     self._current_ra_j2000 = shm_read_double(self._talon_shm, ShmOffsets.RAJ2000) * u.rad
                     self._current_dec_j2000 = shm_read_double(self._talon_shm, ShmOffsets.DecJ2000) * u.rad
@@ -190,7 +180,6 @@ class TelescopeDaemon:
 
             # Wake up any active commands so that they can fail
             self._pointing_condition.notify()
-            self._cover_condition.notify()
         elif talon_alive and self._last_pointing_state == TelState.Absent:
             # Either we or talon has been restarted... find current status
             log.info(self._config.log_name, 'Talon is online')
@@ -208,31 +197,24 @@ class TelescopeDaemon:
         while True:
             # Acquire all condition locks to avoid races with commands
             with self._pointing_condition:
-                with self._cover_condition:
-                    with self._telescope_focus_condition:
-                        self.__update_state_from_talon_shm()
+                with self._telescope_focus_condition:
+                    self.__update_state_from_talon_shm()
 
-                        if self._last_pointing_idx != self._pointing_idx:
-                            last = TelState.label(self._last_pointing_state)
-                            label = TelState.label(self._pointing_state)
-                            print(f'Pointing: {last} ({self._last_pointing_idx}) -> {label} ({self._pointing_idx})')
-                            self._pointing_condition.notify_all()
+                    if self._last_pointing_idx != self._pointing_idx:
+                        last = TelState.label(self._last_pointing_state)
+                        label = TelState.label(self._pointing_state)
+                        print(f'Pointing: {last} ({self._last_pointing_idx}) -> {label} ({self._pointing_idx})')
+                        self._pointing_condition.notify_all()
 
-                        if self._last_cover_state != self._cover_state:
-                            last = CoverState.label(self._last_cover_state)
-                            label = CoverState.label(self._cover_state)
-                            print(f'Cover: {last} -> {label}')
-                            self._cover_condition.notify_all()
+                    if self._last_telescope_focus_um != self._telescope_focus_um:
+                        print(f'tel focus: {self._last_telescope_focus_um:2f} -> {self._telescope_focus_um:2f}')
+                        self._telescope_focus_condition.notify_all()
 
-                        if self._last_telescope_focus_um != self._telescope_focus_um:
-                            print(f'tel focus: {self._last_telescope_focus_um:2f} -> {self._telescope_focus_um:2f}')
-                            self._telescope_focus_condition.notify_all()
-
-                        if self._telescope_focus_state != self._last_telescope_focus_state:
-                            last = FocusState.label(self._last_telescope_focus_state)
-                            label = FocusState.label(self._telescope_focus_state)
-                            print(f'Focus: {last} -> {label}')
-                            self._telescope_focus_condition.notify_all()
+                    if self._telescope_focus_state != self._last_telescope_focus_state:
+                        last = FocusState.label(self._last_telescope_focus_state)
+                        label = FocusState.label(self._telescope_focus_state)
+                        print(f'Focus: {last} -> {label}')
+                        self._telescope_focus_condition.notify_all()
 
             time.sleep(self._config.query_delay)
 
@@ -315,10 +297,7 @@ class TelescopeDaemon:
             })
 
             if self._config.is_onemetre:
-                data.update({
-                    'cover_state': self._cover_state,
-                    'telescope_focus_state': self._telescope_focus_state
-                })
+                data['telescope_focus_state'] = self._telescope_focus_state
 
             if self._axes_homed:
                 timenow = Time(Time.now(), format='mjd', location=self._observatory)
@@ -783,64 +762,6 @@ class TelescopeDaemon:
                         break
 
                 return CommandStatus.Succeeded if complete else CommandStatus.Failed
-
-    def __move_covers(self, to_open=True):
-        """Open or close the W1m's mirror covers"""
-        if not pyro_client_matches(self._config.control_ips):
-            return CommandStatus.InvalidControlIP
-
-        if not self._config.is_onemetre:
-            return CommandStatus.Failed
-
-        with TryLock(self._command_lock) as success:
-            if not success:
-                return CommandStatus.Blocked
-
-            if self._pointing_state == TelState.Absent:
-                return CommandStatus.TelescopeNotInitialized
-
-            if self._cover_state == CoverState.Absent:
-                return CommandStatus.Failed
-
-            if to_open:
-                log.info(self._config.log_name, 'Opening covers')
-            else:
-                log.info(self._config.log_name, 'Closing covers')
-
-            fifo_command = 'coveropen' if to_open else 'coverclose'
-            active_state = CoverState.Opening if to_open else CoverState.Closing
-            final_state = CoverState.Open if to_open else CoverState.Closed
-            timeout = self._config.cover_timeout
-
-            with self._cover_condition:
-                if not fifo_write('Cover.in', fifo_command):
-                    log.error(self._config.log_name, 'Failed to write to Cover.in')
-                    return CommandStatus.Failed
-
-                while True:
-                    self._cover_condition.wait(timeout)
-                    stopped = self._pointing_state == TelState.Absent
-
-                    # Ignore the initial state to <active_state>, which we may or
-                    # may not receive depending on the timing of the telstat loop
-                    if self._cover_state == active_state and not stopped:
-                        continue
-                    break
-
-                if self._cover_state != final_state or stopped:
-                    return CommandStatus.Failed
-
-            return CommandStatus.Succeeded
-
-    @Pyro4.expose
-    def open_covers(self):
-        """Open the W1m's mirror covers"""
-        return self.__move_covers(True)
-
-    @Pyro4.expose
-    def close_covers(self):
-        """Close the W1m's mirror covers"""
-        return self.__move_covers(False)
 
     @Pyro4.expose
     def ping(self):
