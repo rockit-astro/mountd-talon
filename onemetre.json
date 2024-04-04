@@ -16,5 +16,16 @@
   "ping_timeout": 5,
   "ha_soft_limits": [-72, 90],
   "dec_soft_limits": [-30, 85],
-  "park_positions": {}
+  "park_positions": {
+    "stow": {
+      "desc": "default park position",
+      "ha_enc": 2300000,
+      "dec_enc": -2500000
+    },
+    "zenith": {
+      "desc": "park pointing straight up",
+      "ha_enc": -534000,
+      "dec_enc": -593400
+    }
+  }
 }
