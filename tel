@@ -23,8 +23,8 @@ import sys
 import Pyro4
 from astropy.coordinates import Angle, SkyCoord
 import astropy.units as u
+from rockit.common import print
 from rockit.mount.talon import CommandStatus, TelState, Config
-from rockit.common import TFmt
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
@@ -41,7 +41,7 @@ def run_command(command, args):
         files = glob.glob("/etc/mountd/*.json")
         if len(files) != 1:
             print('error: failed to guess the default config file. ' +
-                  'Run as MOUNTD_CONFIG_PATH=/path/to/config.json tel <command> [<args>]')
+                  'Run as MOUNTD_CONFIG_PATH=/path/to/config.json tel <command> \\[<args>]')
             return 1
 
         config = Config(files[0])
@@ -190,7 +190,7 @@ def calibrate(config, args):
                 return teld.find_homes()
             return teld.find_limits()
 
-    print(f'usage: {SCRIPT_NAME} cal [home|limits]')
+    print(f'usage: {SCRIPT_NAME} cal \\[home|limits]')
     return -1
 
 
@@ -218,29 +218,29 @@ def status(config, _):
         ra_offset_desc = ''
         ra_offset = Angle(data['offset_ra'], unit=u.deg).to(u.hourangle)
         if ra_offset != 0:
-            ra_offset_desc = ' with offset ' + TFmt.Bold + ra_offset.to_string(sep=':', precision=2) + TFmt.Clear
+            ra_offset_desc = ' with offset [b]' + ra_offset.to_string(sep=':', precision=2) + '[/b]'
 
         dec_offset_desc = ''
         dec_offset = Angle(data['offset_dec'], unit=u.deg)
         if dec_offset != 0:
-            dec_offset_desc = ' with offset ' + TFmt.Bold + dec_offset.to_string(sep=':', precision=2) + TFmt.Clear
+            dec_offset_desc = ' with offset [b]' + dec_offset.to_string(sep=':', precision=2) + '[/b]'
 
-        moon_desc = TFmt.Bold + f'{data["moon_separation"]:.0f}\u00B0' + TFmt.Clear
-        sun_desc = TFmt.Bold + f'{data["sun_separation"]:.0f}\u00B0' + TFmt.Clear
+        moon_desc = f'[b]{data["moon_separation"]:.0f}\u00B0[/b]'
+        sun_desc = f'[b]{data["sun_separation"]:.0f}\u00B0[/b]'
 
-        print('   RA is ' + TFmt.Bold + ra_desc + TFmt.Clear + ra_offset_desc)
-        print('   Dec is ' + TFmt.Bold + dec_desc + TFmt.Clear + dec_offset_desc)
-        print('   Altitude is ' + TFmt.Bold + alt_desc + TFmt.Clear)
-        print('   Azimuth is ' + TFmt.Bold + az_desc + TFmt.Clear)
+        print(f'   RA is [b]{ra_desc}[/b]' + ra_offset_desc)
+        print(f'   Dec is [b]{dec_desc}[/b]' + dec_offset_desc)
+        print(f'   Altitude is [b]{alt_desc}[/b]')
+        print(f'   Azimuth is [b]{az_desc}[/b]')
         print('   Moon separation is ' + moon_desc)
         print('   Sun separation is ' + sun_desc)
         if 'telescope_focus_um' in data:
-            print('   Telescope focus is ' + TFmt.Bold + f'{data["telescope_focus_um"]:.2f}' + TFmt.Clear + 'um')
+            print(f'   Telescope focus is [b]{data["telescope_focus_um"]:.2f}[/b]um')
     else:
-        print('   Axes are ' + TFmt.Bold + TFmt.Red + 'NOT HOMED' + TFmt.Clear)
+        print('   Axes are [b][red]NOT HOMED[/red][/b]')
 
     lst_desc = Angle(data['lst'], unit=u.deg).to(u.hourangle).to_string(sep=':', precision=2)
-    print('   Local sidereal time is ' + TFmt.Bold + lst_desc + TFmt.Clear)
+    print(f'   Local sidereal time is [b]{lst_desc}[/b]')
 
     return 0
 
@@ -280,7 +280,7 @@ def ping_teld(config):
 
 def print_usage():
     """Prints the utility help"""
-    print(f'usage: {SCRIPT_NAME} <command> [<args>]')
+    print(f'usage: {SCRIPT_NAME} <command> \\[<args>]')
     print()
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')

@@ -16,8 +16,6 @@
 
 """Constants and status codes used by talond"""
 
-from rockit.common import TFmt
-
 
 class CommandStatus:
     """Numeric return codes"""
@@ -82,14 +80,14 @@ class TelState:
         6: 'LIMITING',
     }
 
-    _formats = {
-        0: TFmt.Red + TFmt.Bold,
-        1: TFmt.Red + TFmt.Bold,
-        2: TFmt.Yellow + TFmt.Bold,
-        3: TFmt.Green + TFmt.Bold,
-        4: TFmt.Yellow + TFmt.Bold,
-        5: TFmt.Yellow + TFmt.Bold,
-        6: TFmt.Yellow + TFmt.Bold,
+    _colors = {
+        0: 'red',
+        1: 'red',
+        2: 'yellow',
+        3: 'green',
+        4: 'yellow',
+        5: 'yellow',
+        6: 'yellow'
     }
 
     @classmethod
@@ -99,9 +97,9 @@ class TelState:
         Set formatting=true to enable terminal formatting characters
         """
         if formatting:
-            if status in cls._formats and status in cls._formats:
-                return cls._formats[status] + cls._labels[status] + TFmt.Clear
-            return TFmt.Red + TFmt.Bold + 'UNKNOWN' + TFmt.Clear
+            if status in cls._labels and status in cls._colors:
+                return f'[b][{cls._colors[status]}]{cls._labels[status]}[/{cls._colors[status]}][/b]'
+            return '[b][red]UNKNOWN[/red][/b]'
 
         if status in cls._labels:
             return cls._labels[status]
@@ -132,6 +130,6 @@ class FocusState:
             label = 'UNKNOWN'
 
         if formatting:
-            return TFmt.Bold + label + TFmt.Clear
+            return f'[b]{label}[/b]'
 
         return label
