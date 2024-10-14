@@ -18,6 +18,7 @@
 """Daemon for controlling a telescope through Talon/telescoped/csimcd via Pyro"""
 
 import argparse
+from collections import deque
 import glob
 import math
 import os
@@ -82,7 +83,7 @@ class TelescopeDaemon:
         self._dec_positive_limit = self._config.dec_soft_limits[1] * u.deg
         self._dec_negative_limit = self._config.dec_soft_limits[0] * u.deg
 
-        self._last_talon_mjd = 0
+        self._talon_mjd_history = deque(maxlen=self._config.query_timeout_iterations)
         self._talon_mjd = 0
         self._talon_pid = 0
 
@@ -97,12 +98,12 @@ class TelescopeDaemon:
                 self._talon_shm = sysv_ipc.SharedMemory(ShmOffsets.Key)
 
             with self._talon_shm_lock:
-                self._last_talon_mjd = self._talon_mjd
                 self._talon_mjd = shm_read_double(self._talon_shm, ShmOffsets.MJD)
 
                 # Talon stops updating the shared memory if the hardware crashes
                 # We use this as a proxy for checking that the daemons are operating correctly
-                talon_alive = 0 < self._talon_mjd != self._last_talon_mjd
+                talon_alive = self._talon_mjd > 0 and any(x != self._talon_mjd for x in self._talon_mjd_history)
+                self._talon_mjd_history.append(self._talon_mjd)
 
                 # The first stage of talon boot up zeros the shared memory.
                 # Wait for it to be updated with sensible data

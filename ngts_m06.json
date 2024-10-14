@@ -4,6 +4,7 @@
   "control_machines": ["NGTSDASNUC"],
   "telescope": "NGTS",
   "query_delay": 1,
+  "query_timeout_iterations": 30,
   "initialization_timeout": 60,
   "slew_timeout": 120,
   "homing_timeout": 120,

@@ -24,7 +24,7 @@ CONFIG_SCHEMA = {
     'additionalProperties': False,
     'required': [
         'daemon', 'log_name', 'control_machines',
-        'query_delay', 'initialization_timeout', 'slew_timeout',
+        'query_delay', 'query_timeout_iterations', 'initialization_timeout', 'slew_timeout',
         'ha_soft_limits', 'dec_soft_limits',
         'homing_timeout', 'limit_timeout', 'ping_timeout',
         'park_positions'
@@ -51,6 +51,10 @@ CONFIG_SCHEMA = {
         'query_delay': {
             'type': 'number',
             'min': 0
+        },
+        'query_timeout_iterations': {
+            'type': 'integer',
+            'min': 1
         },
         'initialization_timeout': {
             'type': 'number',
@@ -166,6 +170,7 @@ class Config:
         self.log_name = config_json['log_name']
         self.control_ips = [getattr(IP, machine) for machine in config_json['control_machines']]
         self.query_delay = config_json['query_delay']
+        self.query_timeout_iterations = config_json['query_timeout_iterations']
         self.initialization_timeout = config_json['initialization_timeout']
         self.slew_timeout = config_json['slew_timeout']
         self.homing_timeout = config_json['homing_timeout']

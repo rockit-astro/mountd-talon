@@ -6,6 +6,7 @@
   "security_system_key": "security_system_safe",
   "telescope": "W1m",
   "query_delay": 1,
+  "query_timeout_iterations": 30,
   "focus_tolerance": 0.005,
   "initialization_timeout": 60,
   "slew_timeout": 120,
