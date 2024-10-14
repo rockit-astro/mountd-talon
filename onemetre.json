@@ -5,7 +5,6 @@
   "security_system_daemon": "onemetre_domealert",
   "security_system_key": "security_system_safe",
   "telescope": "W1m",
-  "virtual": false,
   "query_delay": 1,
   "focus_tolerance": 0.005,
   "initialization_timeout": 60,

@@ -16,7 +16,6 @@ A configuration file is specified when launching the server, and the `tel` front
   "log_name": "teld", # The name to use when writing messages to the observatory log.
   "control_machines": ["OneMetreDome", "OneMetreTCS"], # Machine names that are allowed to control (rather than just query) state. Machine names are registered in `rockit.common.IP`.
   "telescope": "W1m", # Either W1m or NGTS  
-  "virtual": false, # Run talon's telescoped with simulated hardware.
   "query_delay": 1, # Delay between shared memory queries.
   "initialization_timeout": 60, # Maximum time allowed for talon's telescoped to start.
   "slew_timeout": 120, # Maximum time allowed to slew from any position to any other position (note: telescoped has its own separate value).

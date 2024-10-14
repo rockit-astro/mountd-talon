@@ -3,7 +3,6 @@
   "log_name": "teld@ngts_m06",
   "control_machines": ["NGTSDASNUC"],
   "telescope": "NGTS",
-  "virtual": false,
   "query_delay": 1,
   "initialization_timeout": 60,
   "slew_timeout": 120,

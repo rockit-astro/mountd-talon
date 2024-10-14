@@ -23,7 +23,7 @@ CONFIG_SCHEMA = {
     'type': 'object',
     'additionalProperties': False,
     'required': [
-        'daemon', 'log_name', 'control_machines', 'virtual',
+        'daemon', 'log_name', 'control_machines',
         'query_delay', 'initialization_timeout', 'slew_timeout',
         'ha_soft_limits', 'dec_soft_limits',
         'homing_timeout', 'limit_timeout', 'ping_timeout',
@@ -43,9 +43,6 @@ CONFIG_SCHEMA = {
                 'type': 'string',
                 'machine_name': True
             }
-        },
-        'virtual': {
-            'type': 'boolean',
         },
         'telescope': {
             'type': 'string',
@@ -168,7 +165,6 @@ class Config:
         self.daemon = getattr(daemons, config_json['daemon'])
         self.log_name = config_json['log_name']
         self.control_ips = [getattr(IP, machine) for machine in config_json['control_machines']]
-        self.virtual = config_json['virtual']
         self.query_delay = config_json['query_delay']
         self.initialization_timeout = config_json['initialization_timeout']
         self.slew_timeout = config_json['slew_timeout']

@@ -353,9 +353,6 @@ class TelescopeDaemon:
             talon_env = environment_from_source('/etc/profile.d/talon.sh')
             with open(os.devnull, 'w') as devnull:
                 daemon_args = ['/usr/local/telescope/bin/rund', 'telescoped']
-                if self._config.virtual:
-                    daemon_args.append('-v')
-
                 subprocess.call(daemon_args, env=talon_env, stdout=devnull, stderr=devnull)
 
             with self._pointing_condition:
