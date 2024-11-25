@@ -14,8 +14,8 @@
   "homing_timeout": 120,
   "limit_timeout": 120,
   "ping_timeout": 5,
-  "ha_soft_limits": [-72, 90],
-  "dec_soft_limits": [-30, 85],
+  "ha_soft_limits": [-70, 70],
+  "dec_soft_limits": [-20, 89],
   "park_positions": {
     "stow": {
       "desc": "default park position",
