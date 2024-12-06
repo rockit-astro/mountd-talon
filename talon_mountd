@@ -98,23 +98,33 @@ class TelescopeDaemon:
                 self._talon_shm = sysv_ipc.SharedMemory(ShmOffsets.Key)
 
             with self._talon_shm_lock:
-                self._talon_mjd = shm_read_double(self._talon_shm, ShmOffsets.MJD)
+                self._last_pointing_state = self._pointing_state
+                self._last_pointing_idx = self._pointing_idx
+                self._last_telescope_focus_state = self._telescope_focus_state
+                self._last_telescope_focus_um = self._telescope_focus_um
+
+                self._talon_pid = shm_read_int(self._talon_shm, ShmOffsets.PID)
 
                 # Talon stops updating the shared memory if the hardware crashes
                 # We use this as a proxy for checking that the daemons are operating correctly
+                self._talon_mjd = shm_read_double(self._talon_shm, ShmOffsets.MJD)
                 talon_alive = self._talon_mjd > 0 and any(x != self._talon_mjd for x in self._talon_mjd_history)
                 self._talon_mjd_history.append(self._talon_mjd)
 
+                # Confirm whether the telescoped process is alive
+                if self._talon_pid > 0:
+                    try:
+                        os.kill(self._talon_pid, 0)
+                    except ProcessLookupError:
+                        talon_alive = False
+                        self._pointing_state = TelState.Absent
+                        self._talon_pid = 0
+                        self._pointing_idx = -1
+
                 # The first stage of talon boot up zeros the shared memory.
                 # Wait for it to be updated with sensible data
-                if self._talon_mjd > 0:
-                    self._last_pointing_state = self._pointing_state
-                    self._last_pointing_idx = self._pointing_idx
-                    pointing_state = shm_read_int(self._talon_shm, ShmOffsets.TelState)
-                    if not talon_alive:
-                        pointing_state = TelState.Absent
-
-                    self._pointing_state = pointing_state
+                if talon_alive and self._talon_mjd > 0:
+                    self._pointing_state = shm_read_int(self._talon_shm, ShmOffsets.TelState)
                     self._pointing_idx = shm_read_int(self._talon_shm, ShmOffsets.TelStateIdx)
 
                     self._current_ra_j2000 = shm_read_double(self._talon_shm, ShmOffsets.RAJ2000) * u.rad
@@ -134,7 +144,6 @@ class TelescopeDaemon:
                     focus_pos = shm_read_double(self._talon_shm, ShmOffsets.FocusCPos)
                     focus_df = shm_read_double(self._talon_shm, ShmOffsets.FocusDF)
 
-                    self._last_telescope_focus_state = self._telescope_focus_state
                     self._telescope_focus_state = FocusState.Absent
                     if focus_flags & 0x01 == 1:
                         self._telescope_focus_state = FocusState.NotHomed
@@ -147,7 +156,6 @@ class TelescopeDaemon:
                         elif focus_flags & 0x200 != 0:
                             self._telescope_focus_state = FocusState.Ready
 
-                    self._last_telescope_focus_um = self._telescope_focus_um
                     self._telescope_focus_um = focus_step * focus_pos / (2 * math.pi * focus_df)
 
                     self._axes_homed = ra_flags & 0x200 != 0 and dec_flags & 0x200 != 0 and \
@@ -165,7 +173,7 @@ class TelescopeDaemon:
             # Talon has just died on us!
             log.info(self._config.log_name, 'Talon is offline')
 
-            # Kill telescoped and csimcd
+            # Clean up any leftover processes
             log.info(self._config.log_name, 'Killing rund-spawned daemons')
             subprocess.call(['/usr/bin/killall', 'rund'])
 
@@ -186,8 +194,6 @@ class TelescopeDaemon:
             log.info(self._config.log_name, 'Talon is online')
 
             with self._talon_shm_lock:
-                self._talon_pid = shm_read_int(self._talon_shm, ShmOffsets.PID)
-
                 self._observatory = EarthLocation(
                     lat=shm_read_double(self._talon_shm, ShmOffsets.Latitude) * u.rad,
                     lon=shm_read_double(self._talon_shm, ShmOffsets.Longitude) * u.rad,
