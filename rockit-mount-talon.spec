@@ -1,6 +1,6 @@
 Name:      rockit-mount-talon
 Version:   %{_version}
-Release:   1
+Release:   1%{dist}
 Summary:   Talon mount control
 Url:       https://github.com/rockit-astro/mountd-talon
 License:   GPL-3.0

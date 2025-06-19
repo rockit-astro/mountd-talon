@@ -27,7 +27,7 @@ import subprocess
 import threading
 import time
 import sysv_ipc
-from astropy.coordinates import SkyCoord, EarthLocation, get_moon, get_sun
+from astropy.coordinates import SkyCoord, EarthLocation, get_body
 from astropy.time import Time
 import astropy.units as u
 import Pyro4
@@ -320,8 +320,8 @@ class TelescopeDaemon:
                     'alt': self._current_alt.to_value(u.deg),
                     'az': self._current_az.to_value(u.deg),
 
-                    'moon_separation': get_moon(timenow).separation(pointing).to_value(u.deg),
-                    'sun_separation': get_sun(timenow).separation(pointing).to_value(u.deg),
+                    'moon_separation': get_body('moon', timenow).separation(pointing).to_value(u.deg),
+                    'sun_separation': get_body('sun', timenow).separation(pointing).to_value(u.deg),
                 })
 
                 if self._telescope_focus_state != FocusState.Absent:
