@@ -277,6 +277,80 @@ def ping_teld(config):
     with config.daemon.connect(timeout=config.ping_timeout) as teld:
         teld.ping()
 
+def paddle(config, _):
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
+    settings = Gtk.Settings.get_default()
+    settings.set_property("gtk-application-prefer-dark-theme", True)
+
+    class PaddleWindow(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="Paddle")
+            self.set_border_width(10)
+            self.set_resizable(False)
+
+            header = Gtk.HeaderBar()
+            header.set_show_close_button(True)
+            header.props.title = "Paddle"
+            self.set_titlebar(header)
+            container = Gtk.Box(spacing=6)
+            self.add(container)
+
+            direction_container = Gtk.Grid()
+            direction_container.set_column_homogeneous(True)
+            direction_container.set_row_homogeneous(True)
+            container.pack_start(direction_container, False, False, 0)
+
+            def notify_dir(**kwargs):
+                with config.daemon.connect() as teld:
+                    teld.jog(**kwargs)
+
+            def notify_focus(**kwargs):
+                with config.daemon.connect() as teld:
+                    teld.jog_focus(**kwargs)
+
+            stop_dir = lambda _: notify_dir()
+            direction_buttons = [
+                ('N', lambda _: notify_dir(north=True), 1, 0),
+                ('E', lambda _: notify_dir(east=True), 0, 1),
+                ('S', lambda _: notify_dir(south=True), 1, 2),
+                ('W', lambda _: notify_dir(west=True), 2, 1),
+            ]
+
+            stop_focus = lambda _: notify_focus()
+            focus_buttons = [
+                ('Focus In', lambda _: notify_focus(focus_in=True)),
+                ('Focus Out', lambda _: notify_focus(focus_out=True)),
+            ]
+
+            for label, jog_dir, x, y in direction_buttons:
+                button = Gtk.Button.new_with_label(label)
+                button.set_size_request(50, 50)
+                button.connect("pressed", jog_dir)
+                button.connect("released", stop_dir)
+                direction_container.attach(button, x, y, 1, 1)
+
+            focus_container = Gtk.Box()
+            focus_container.set_orientation(Gtk.Orientation.VERTICAL)
+            focus_container.set_valign(Gtk.Align.CENTER)
+            container.pack_start(focus_container, False, False, 0)
+
+            for label, jog_focus in focus_buttons:
+                button = Gtk.Button.new_with_label(label)
+                button.connect("pressed", jog_focus)
+                button.connect("released", stop_focus)
+                focus_container.pack_start(button, False, False, 20)
+
+    try:
+        win = PaddleWindow()
+        win.connect("destroy", Gtk.main_quit)
+        win.show_all()
+        Gtk.main()
+    except KeyboardInterrupt:
+        pass
+
+    return 0
 
 def print_usage():
     """Prints the utility help"""
@@ -314,6 +388,7 @@ if __name__ == '__main__':
         'stop': stop,
         'init': initialize,
         'kill': shutdown,
+        'paddle': paddle,
         'list-parks': list_parks
     }
 

@@ -491,6 +491,55 @@ class TelescopeDaemon:
         return CommandStatus.Succeeded
 
     @Pyro4.expose
+    def jog(self, north=False, east=False, south=False, west=False):
+        """Offset pointing"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        if self._pointing_state == TelState.Absent:
+            return CommandStatus.TelescopeNotInitialized
+
+        if north:
+            command = 'jN'
+        elif east:
+            command = 'jE'
+        elif south:
+            command = 'jS'
+        elif west:
+            command = 'jW'
+        else:
+            command = 'j0'
+
+        if not fifo_write('Tel.in', command):
+            log.error(self._config.log_name, 'Failed to write to Tel.in')
+            return CommandStatus.Failed
+
+        return CommandStatus.Succeeded
+
+
+    @Pyro4.expose
+    def jog_focus(self, focus_in=False, focus_out=False):
+        """Offset focus"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        if self._pointing_state == TelState.Absent:
+            return CommandStatus.TelescopeNotInitialized
+
+        if focus_in:
+            command = 'j-'
+        elif focus_out:
+            command = 'j+'
+        else:
+            command = 'j0'
+
+        if not fifo_write('Focus.in', command):
+            log.error(self._config.log_name, 'Failed to write to Focus.in')
+            return CommandStatus.Failed
+
+        return CommandStatus.Succeeded
+
+    @Pyro4.expose
     def slew_altaz(self, alt_deg, az_deg):
         """Moves the telescope to a target"""
         if not pyro_client_matches(self._config.control_ips):
