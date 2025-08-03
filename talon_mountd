@@ -471,14 +471,32 @@ class TelescopeDaemon:
         # The stop command overrides all other commands
         self._force_stopped = True
 
-        tel_fifo_succeeded = fifo_write('Tel.in', 'Stop')
-        focus_fifo_succeeded = fifo_write('Focus.in', 'Stop')
-
-        if not tel_fifo_succeeded:
+        if not fifo_write('Tel.in', 'Stop'):
             log.error(self._config.log_name, 'Failed to write to Tel.in')
             return CommandStatus.Failed
 
-        if not focus_fifo_succeeded:
+        # Block until any other pointing commands have terminated before cleaning up
+        with self._command_lock:
+            self._force_stopped = False
+
+        # TODO: Wait for state to update?
+
+        return CommandStatus.Succeeded
+
+
+    @Pyro4.expose
+    def stop_focus(self):
+        """Stops any active telescope movement"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        if self._pointing_state == TelState.Absent:
+            return CommandStatus.TelescopeNotInitialized
+
+        # The stop command overrides all other commands
+        self._force_stopped = True
+
+        if not fifo_write('Focus.in', 'Stop'):
             log.error(self._config.log_name, 'Failed to write to Focus.in')
             return CommandStatus.Failed
 

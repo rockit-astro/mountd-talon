@@ -175,7 +175,13 @@ def focus(config, args):
 
         ping_teld(config)
         with config.daemon.connect(timeout=0) as teld:
-            return teld.telescope_focus(position)
+            try:
+                return teld.telescope_focus(position)
+            except KeyboardInterrupt:
+                ret = teld.stop_focus()
+                if ret == 0:
+                    ret = -100
+                return ret
 
     print(f'usage: {SCRIPT_NAME} focus <position>')
     return -1
