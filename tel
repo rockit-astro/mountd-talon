@@ -286,23 +286,23 @@ def ping_teld(config):
 def paddle(config, _):
     try:
         import gi
-        gi.require_version("Gtk", "3.0")
+        gi.require_version('Gtk', '3.0')
         from gi.repository import Gtk
         settings = Gtk.Settings.get_default()
-        settings.set_property("gtk-application-prefer-dark-theme", True)
+        settings.set_property('gtk-application-prefer-dark-theme', True)
     except:
-        print(f'error: gtk not available')
+        print('error: gtk not available')
         return -1
 
     class PaddleWindow(Gtk.Window):
         def __init__(self):
-            super().__init__(title="Paddle")
+            super().__init__(title='Paddle')
             self.set_border_width(10)
             self.set_resizable(False)
 
             header = Gtk.HeaderBar()
             header.set_show_close_button(True)
-            header.props.title = "Paddle"
+            header.props.title = 'Paddle'
             self.set_titlebar(header)
             container = Gtk.Box(spacing=6)
             self.add(container)
@@ -337,8 +337,8 @@ def paddle(config, _):
             for label, jog_dir, x, y in direction_buttons:
                 button = Gtk.Button.new_with_label(label)
                 button.set_size_request(50, 50)
-                button.connect("pressed", jog_dir)
-                button.connect("released", stop_dir)
+                button.connect('pressed', jog_dir)
+                button.connect('released', stop_dir)
                 direction_container.attach(button, x, y, 1, 1)
 
             focus_container = Gtk.Box()
@@ -348,13 +348,13 @@ def paddle(config, _):
 
             for label, jog_focus in focus_buttons:
                 button = Gtk.Button.new_with_label(label)
-                button.connect("pressed", jog_focus)
-                button.connect("released", stop_focus)
+                button.connect('pressed', jog_focus)
+                button.connect('released', stop_focus)
                 focus_container.pack_start(button, False, False, 20)
 
     try:
         win = PaddleWindow()
-        win.connect("destroy", Gtk.main_quit)
+        win.connect('destroy', Gtk.main_quit)
         win.show_all()
         Gtk.main()
     except KeyboardInterrupt:
