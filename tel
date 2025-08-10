@@ -209,7 +209,7 @@ def status(config, _):
     print(f'   Telescope is {TelState.label(data["state"], formatting=True)}')
 
     # Telescope is disabled
-    if data['state'] == 0:
+    if data['state'] == TelState.Absent:
         return 0
 
     if data['axes_homed']:
@@ -284,6 +284,13 @@ def ping_teld(config):
         teld.ping()
 
 def paddle(config, _):
+    """Reports the current telescope status"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        data = teld.report_status()
+        if data['state'] == TelState.Absent:
+            return CommandStatus.TelescopeNotInitialized
+
     try:
         import gi
         gi.require_version('Gtk', '3.0')
