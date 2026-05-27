@@ -49,6 +49,7 @@ Requires: python3-rockit-mount-talon python3-astropy
 %package data-onemetre
 Summary: Talon mount configuration for the W1m telescope
 Group:   Unspecified
+Requires: rockit-talon-data-onemetre
 %description data-onemetre
 
 %files data-onemetre
