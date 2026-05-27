@@ -376,6 +376,7 @@ def print_usage():
     print('general commands:')
     print('   status    print a human-readable summary of the telescope status')
     print('   park      park the telescope in a named position')
+    print('   paddle    display GUI for manually moving telescope')
     print()
     print('observing commands:')
     print('   slew      slew the telescope to a given RA, Dec')
