@@ -187,17 +187,18 @@ def focus(config, args):
     return -1
 
 
-def calibrate(config, args):
-    """Performs the home and limit calibrations"""
-    if len(args) == 1 and (args[0] == 'home' or args[0] == 'limits'):
-        ping_teld(config)
-        with config.daemon.connect(timeout=0) as teld:
-            if args[0] == 'home':
-                return teld.find_homes()
-            return teld.find_limits()
+def home(config, args):
+    """Home the mount"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.find_homes()
 
-    print(f'usage: {SCRIPT_NAME} cal \\[home|limits]')
-    return -1
+
+def limits(config, args):
+    """Calibrate limit switch positions"""
+    ping_teld(config)
+    with config.daemon.connect(timeout=0) as teld:
+        return teld.find_limits()
 
 
 def status(config, _):
@@ -387,7 +388,10 @@ def print_usage():
     print('   stop      immediately stop any telescope movement')
     print()
     print('engineering commands:')
-    print('   cal       perform telescope home or limit calibrations')
+    print('   init      connect to mount')
+    print('   kill      disconnect from mount')
+    print('   home      home the mount')
+    print('   limits    calibrate limit switch positions')
     print()
 
     return 0
@@ -401,7 +405,8 @@ if __name__ == '__main__':
         'track': track,
         'offset': offset,
         'focus': focus,
-        'cal': calibrate,
+        'home': home,
+        'limits': limits,
         'status': status,
         'stop': stop,
         'init': initialize,
